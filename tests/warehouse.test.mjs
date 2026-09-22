@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import { initialState, applyAction, madridDay } from '../lib/warehouse.ts';
+let s=initialState();
+const apply=a=>s=applyAction(s,a,new Date('2026-09-22T12:45:00Z'));
+apply({type:'product',sku:'REF-A',name:'Cantonera A',family:'Cantoneras',minimum:2});
+apply({type:'product',sku:'REF-B',name:'Cantonera B',family:'Cantoneras',minimum:0});
+assert.throws(()=>apply({type:'product',sku:'ref-a',name:'Duplicado',family:'Cantoneras',minimum:0}),/ya existe/);
+for(const code of ['A-01','A-02','A-03'])apply({type:'location',code,zone:'Pasillo A',capacity:8});
+const base={type:'movement',kind:'entrada',sku:'REF-A',qty:5,location:'A-01',operator:'Prueba',labelled:true};
+apply(base);assert.equal(s.locations[0].qty,5);
+const unchanged=JSON.stringify(s);
+for(const [action,error] of [[{...base,qty:4},/capacidad/],[{...base,qty:-1},/entero/],[{...base,qty:1.5},/entero/],[{...base,sku:'REF-B',qty:1},/una sola referencia/],[{...base,labelled:false},/etiquetas/],[{...base,qty:1,stacked:true,safe:false},/inferior/],[{...base,kind:'salida',qty:6,verified:true,document:'ALB-1'},/suficientes/],[{...base,kind:'salida',qty:1,verified:false,document:'ALB-1'},/doble revisión/],[{...base,kind:'salida',qty:1,verified:true,document:''},/Albarán/]]){assert.throws(()=>applyAction(s,action),error);assert.equal(JSON.stringify(s),unchanged)}
+apply({...base,kind:'traslado',qty:3,destination:'A-02'});assert.equal(s.locations[0].qty,2);assert.equal(s.locations[1].qty,3);assert.equal(s.locations.reduce((n,l)=>n+l.qty,0),5);
+apply({...base,kind:'entrada',sku:'REF-B',qty:1,location:'A-03'});
+const pre=JSON.stringify(s);assert.throws(()=>applyAction(s,{...base,kind:'traslado',qty:2,destination:'A-03'}),/una sola referencia/);assert.equal(JSON.stringify(s),pre);
+apply({...base,kind:'salida',qty:2,verified:true,document:'ALB-1'});assert.equal(s.locations[0].qty,0);assert.equal(s.locations[0].sku,'');assert.equal(s.movements[0].operator,'Prueba');
+assert.throws(()=>apply({type:'closure',checks:[true,true,false,true,true],operator:'Prueba'}),/cinco/);
+apply({type:'closure',checks:[true,true,true,true,true],operator:'Prueba',notes:'Cierre de prueba'});assert.equal(s.closures[0].day,'2026-09-22');assert.throws(()=>apply({type:'closure',checks:[true,true,true,true,true],operator:'Prueba'}),/ya está firmado/);
+assert.equal(madridDay(new Date('2026-09-22T22:30:00Z')),'2026-09-23');
+apply({...s.tasks[0],type:'task',owner:'Operario real',done:true});assert.equal(s.tasks[0].done,true);
+console.log('OK: entradas, salidas, traslados, capacidad, SKU único, revisión, atomicidad, cierre y fecha Madrid.');
