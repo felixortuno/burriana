@@ -5,7 +5,7 @@ Aplicación privada de gestión del almacén para el ordenador de oficina.
 ## Primer uso
 
 1. En **Inventario**, crea las referencias con un SKU único, descripción, familia y mínimo en palets.
-2. En **Ubicaciones**, crea cada bloque físico (por ejemplo A-01), su pasillo y su capacidad validada. No hay un plano ni existencias ficticias.
+2. En **Ubicaciones**, consulta el detalle del plano 08 y crea cada bloque físico (por ejemplo CAR-A-01 o CAJ-A-01), asignándolo a **Almacén de cartón** o **Montaje y almacenaje de cajas**, con su pasillo y capacidad validada. Las ubicaciones anteriores sin zona se conservan como pendientes de asignar; pueden seguir teniendo salidas, pero requieren asignación antes de recibir entradas o traslados. No hay un plano ni existencias ficticias.
 3. En **Movimientos**, registra el inventario inicial como entradas, con responsable y comprobación del etiquetado.
 4. Edita las tareas del **Plan 5S** para asignar nombres y fechas reales.
 5. Cada día, completa **Cierre de turno** y registra el nombre de quien revisa. El día y la hora se calculan en Europe/Madrid.
@@ -13,7 +13,8 @@ Aplicación privada de gestión del almacén para el ordenador de oficina.
 ## Alcance
 
 - Catálogo editable, búsqueda, alerta por mínimo y exportación CSV compatible con Excel.
-- Mapa esquemático por zonas, no un plano a escala. Una referencia por bloque.
+- Detalle del plano 08 (diciembre de 2022, estado proyectado), con las dos zonas de cartón y cajas delimitadas. Cerámica, exposición, oficinas, instalaciones y muelle no son zonas de stock de la app. La franja inferior contigua forma parte de montaje y almacenaje de cajas.
+- Las agrupaciones de palets y máquinas del dibujo son referencias del proyecto, no existencias ni capacidades calculadas. Los bloques registrados se listan por zona y pasillo, sin atribuirles posiciones a escala. Una referencia por bloque.
 - Entradas, salidas y traslados de palets completos; no gestiona palets parciales, lotes o unidades interiores.
 - No permite stock negativo, exceder capacidad o mezclar referencias en un bloque ocupado.
 - Salidas con albarán, responsable y confirmación de doble comprobación.

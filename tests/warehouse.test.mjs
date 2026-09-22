@@ -5,7 +5,7 @@ const apply=a=>s=applyAction(s,a,new Date('2026-09-22T12:45:00Z'));
 apply({type:'product',sku:'REF-A',name:'Cantonera A',family:'Cantoneras',minimum:2});
 apply({type:'product',sku:'REF-B',name:'Cantonera B',family:'Cantoneras',minimum:0});
 assert.throws(()=>apply({type:'product',sku:'ref-a',name:'Duplicado',family:'Cantoneras',minimum:0}),/ya existe/);
-for(const code of ['A-01','A-02','A-03'])apply({type:'location',code,zone:'Pasillo A',capacity:8});
+for(const code of ['A-01','A-02','A-03'])apply({type:'location',code,zone:'Pasillo A',area:code==='A-03'?'montaje':'carton',capacity:8});
 const base={type:'movement',kind:'entrada',sku:'REF-A',qty:5,location:'A-01',operator:'Prueba',labelled:true};
 apply(base);assert.equal(s.locations[0].qty,5);
 const unchanged=JSON.stringify(s);
@@ -19,3 +19,9 @@ apply({type:'closure',checks:[true,true,true,true,true],operator:'Prueba',notes:
 assert.equal(madridDay(new Date('2026-09-22T22:30:00Z')),'2026-09-23');
 apply({...s.tasks[0],type:'task',owner:'Operario real',done:true});assert.equal(s.tasks[0].done,true);
 console.log('OK: entradas, salidas, traslados, capacidad, SKU único, revisión, atomicidad, cierre y fecha Madrid.');
+
+assert.throws(()=>applyAction(s,{type:'location',code:'CER-01',zone:'Cerámica',area:'ceramica',capacity:4}),/cartón/);
+assert.throws(()=>applyAction(s,{type:'location',code:'NO-ZONA',zone:'Pasillo A',capacity:4}),/cartón/);
+const legacy=structuredClone(s);delete legacy.locations[0].area;const legacyBefore=JSON.stringify(legacy);assert.throws(()=>applyAction(legacy,{...base,qty:1}),/Asigna primero/);assert.equal(JSON.stringify(legacy),legacyBefore);
+const assigned=applyAction(legacy,{...legacy.locations[0],type:'location',area:'carton'});assert.equal(assigned.locations[0].area,'carton');assert.deepEqual(assigned.movements,legacy.movements);
+console.log('OK: ámbito cartón/cajas y asignación de ubicaciones anteriores sin pérdida de datos.');
