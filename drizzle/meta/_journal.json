@@ -8,6 +8,13 @@
       "when": 1790075297402,
       "tag": "0000_wonderful_puppet_master",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790076500000,
+      "tag": "0001_initialize_warehouse",
+      "breakpoints": true
     }
   ]
 }
