@@ -1,4 +1,4 @@
-import { GET as getWarehouse, POST as postWarehouse } from '@/lib/server/warehouse-runtime';
+import { GET as getWarehouse, POST as postWarehouse } from '@/lib/server/warehouse-handlers';
 
 export const dynamic = 'force-dynamic';
 

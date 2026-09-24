@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeRequest } from "@/lib/server/deployment-access";
+import { authorizeRequest } from "@/lib/server/access";
 
 export function proxy(request: Request) {
   return authorizeRequest(request.headers) ?? NextResponse.next();

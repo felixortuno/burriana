@@ -1,6 +1,6 @@
-import { getPostgresWarehouseStore } from '../../db/neon-warehouse';
+import { getPostgresWarehouseStore } from '../../db/supabase-warehouse';
 import { createWarehouseHandlers } from './warehouse-api';
-import { authorizeRequest, validateMutationOrigin } from './vercel-access';
+import { authorizeRequest, validateMutationOrigin } from './access';
 
 export const { GET, POST } = createWarehouseHandlers(getPostgresWarehouseStore, {
   authorize: authorizeRequest,

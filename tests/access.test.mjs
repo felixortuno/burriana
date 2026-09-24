@@ -3,8 +3,7 @@ import test from "node:test";
 import {
   authorizeRequest,
   validateMutationOrigin,
-} from "../lib/server/vercel-access.ts";
-import { authorizeRequest as authorizeSitesRequest } from "../lib/server/deployment-access.ts";
+} from "../lib/server/access.ts";
 
 const user = "oficina-prueba";
 const password = "fixture-solamente-no-es-un-secreto";
@@ -72,10 +71,9 @@ test("Vercel access is closed until configured and requires valid credentials", 
       assert.equal(authorizeRequest(basic(process.env.WAREHOUSE_ADMIN_USER, process.env.WAREHOUSE_ADMIN_PASSWORD)), null);
     });
 
-    await t.test("Sites remains protected by its platform and does not require Basic config", () => {
+    await t.test("clearing the configuration closes the gate again", () => {
       delete process.env.WAREHOUSE_ADMIN_USER;
       delete process.env.WAREHOUSE_ADMIN_PASSWORD;
-      assert.equal(authorizeSitesRequest(new Headers()), null);
       assert.equal(authorizeRequest(basic()).status, 503);
     });
   } finally {
