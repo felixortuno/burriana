@@ -45,7 +45,7 @@ test("access stays closed until the account is configured", async (t) => {
         [undefined, password],
         ["", password],
         ["   ", password],
-        [user, "demasiado-corta"],
+        [user, ""],
         ["con\nsalto", password],
       ]) {
         configure(name, secret);
@@ -130,6 +130,15 @@ test("access stays closed until the account is configured", async (t) => {
       ]) {
         assert.equal(await matchesCredentials(wrong, expected), false, JSON.stringify(wrong));
       }
+    });
+
+    await t.test("a short password is accepted once configured", async () => {
+      configure("admin", "gtr");
+      assert.equal(await checkAccess(new Headers()), "unauthenticated");
+      const token = await validToken();
+      assert.equal(await checkAccess(cookie(token)), "ok");
+      assert.equal(await matchesCredentials({ user: "admin", password: "gtr" }, readCredentials()), true);
+      assert.equal(await matchesCredentials({ user: "admin", password: "gt" }, readCredentials()), false);
     });
 
     await t.test("UTF-8 users and passwords work", async () => {

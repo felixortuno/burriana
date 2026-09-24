@@ -16,7 +16,9 @@ export function readCredentials(): Credentials | null {
   const user = process.env.WAREHOUSE_ADMIN_USER;
   const password = process.env.WAREHOUSE_ADMIN_PASSWORD;
   if (!user?.trim() || /[\u0000-\u001f\u007f]/.test(user)) return null;
-  if (!password || password.length < 20) return null;
+  // Any non-empty password is accepted, by explicit choice of the account owner.
+  // An unset one still fails closed, so the app never opens without a password.
+  if (!password) return null;
   return { user: user.trim(), password };
 }
 
