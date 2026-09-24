@@ -50,17 +50,34 @@ export async function authorizeRequest(headers: Headers): Promise<Response | nul
   }
 }
 
-/** Session cookies ride along automatically, so writes also need an origin check. */
+/**
+ * Session cookies ride along automatically, so writes also need a CSRF check.
+ *
+ * The Origin header is compared against the Host the request arrived on, not
+ * against request.url: behind Vercel's proxy that URL carries an internal origin
+ * that never matches what the browser sent, which would reject every real login.
+ */
 export function validateMutationOrigin(request: Request): Response | null {
+  const denied = Response.json(
+    { error: "Solicitud no permitida." },
+    { status: 403, headers: noStore },
+  );
+
+  if (request.headers.get("sec-fetch-site") === "cross-site") return denied;
+
   const origin = request.headers.get("origin");
-  if (
-    request.headers.get("sec-fetch-site") === "cross-site" ||
-    (origin !== null && origin !== new URL(request.url).origin)
-  ) {
-    return Response.json(
-      { error: "Solicitud no permitida." },
-      { status: 403, headers: noStore },
-    );
+  // Non-browser clients send no Origin; sec-fetch-site above covers browsers.
+  if (origin === null) return null;
+
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  if (!host) return denied;
+
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    return denied;
   }
-  return null;
+  // Hosts, not full origins: the proxy terminates TLS, so the scheme can differ.
+  return originHost === host ? null : denied;
 }

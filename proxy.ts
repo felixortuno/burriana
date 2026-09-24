@@ -24,9 +24,8 @@ export async function proxy(request: Request) {
     );
   }
 
-  const login = new URL(LOGIN_PATH, url);
-  if (url.pathname !== "/") login.searchParams.set("desde", url.pathname);
-  return NextResponse.redirect(login);
+  // The app is a single page, so there is nowhere else to send anyone back to.
+  return NextResponse.redirect(new URL(LOGIN_PATH, url));
 }
 
 export const config = {

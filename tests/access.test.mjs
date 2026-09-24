@@ -151,18 +151,31 @@ test("the login route stays reachable without a session", () => {
 });
 
 test("mutation origin checks prevent browser cross-origin writes", () => {
-  const url = "https://almacen.example/api/warehouse";
-  assert.equal(validateMutationOrigin(new Request(url, { method: "POST" })), null);
+  // request.url carries the proxy's internal origin, so the check reads the Host
+  // header the browser actually addressed. A regression here locks everyone out.
+  const post = (headers) =>
+    new Request("http://10.0.0.7:8080/api/session", { method: "POST", headers });
+
+  const sameOrigin = { host: "almacen.example", origin: "https://almacen.example" };
+  assert.equal(validateMutationOrigin(post(sameOrigin)), null);
   assert.equal(
-    validateMutationOrigin(
-      new Request(url, { method: "POST", headers: { origin: "https://almacen.example" } }),
-    ),
+    validateMutationOrigin(post({ ...sameOrigin, "sec-fetch-site": "same-origin" })),
     null,
   );
+  // Vercel terminates TLS, so the scheme differs from the one the app sees.
+  assert.equal(
+    validateMutationOrigin(post({ "x-forwarded-host": "almacen.example", host: "interno:8080", origin: "https://almacen.example" })),
+    null,
+  );
+  // No Origin at all: curl and other non-browser clients.
+  assert.equal(validateMutationOrigin(post({ host: "almacen.example" })), null);
+
   for (const headers of [
-    { origin: "https://otro.example" },
-    { "sec-fetch-site": "cross-site" },
+    { host: "almacen.example", origin: "https://otro.example" },
+    { host: "almacen.example", origin: "https://almacen.example.malo.com" },
+    { host: "almacen.example", origin: "no-es-una-url" },
+    { host: "almacen.example", origin: "https://almacen.example", "sec-fetch-site": "cross-site" },
   ]) {
-    assert.equal(validateMutationOrigin(new Request(url, { method: "POST", headers })).status, 403);
+    assert.equal(validateMutationOrigin(post(headers)).status, 403, JSON.stringify(headers));
   }
 });

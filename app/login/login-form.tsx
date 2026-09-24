@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogIn } from 'lucide-react';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -9,14 +8,6 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-
-  // Read ?desde= only when submitting: useSearchParams would force the whole form
-  // to render on the client, leaving the page without a form until JavaScript ran.
-  function destination() {
-    const requested = new URLSearchParams(window.location.search).get('desde');
-    // Only ever return to a path inside this app, never to a URL someone supplied.
-    return requested?.startsWith('/') && !requested.startsWith('//') ? requested : '/';
-  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -35,7 +26,7 @@ export default function LoginForm() {
         setPassword('');
         return;
       }
-      router.replace(destination());
+      router.replace('/');
       router.refresh();
     } catch {
       setError('No hay conexión con el servidor. Comprueba la red y vuelve a intentarlo.');
@@ -74,7 +65,6 @@ export default function LoginForm() {
         />
       </label>
       <button className="login-submit" type="submit" disabled={busy}>
-        <LogIn size={17} />
         {busy ? 'Entrando' : 'Entrar'}
       </button>
     </form>

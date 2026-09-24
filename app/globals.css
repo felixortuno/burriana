@@ -109,36 +109,53 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px}button{curso
 .warehouse-plan{margin-bottom:24px}.dashboard-grid .warehouse-plan{margin-bottom:0}.blueprint{margin:0 24px;border:1px solid #dce5dc;border-radius:6px;overflow:hidden;background:white}.blueprint svg{display:block;width:100%;height:auto}.plan-zones{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:20px 24px 12px}.plan-zone{text-align:left;border:1px solid #dce5dd;background:#f8faf7;border-radius:7px;padding:16px;min-width:0}.plan-zone[aria-pressed=true]{outline:2px solid #146c52;outline-offset:1px}.plan-zone.montaje[aria-pressed=true]{outline-color:#b88726}.zone-caption{display:flex;gap:9px;align-items:center;font-size:14px;font-weight:600;line-height:1.5}.zone-caption svg{margin-left:auto;flex-shrink:0}.zone-dot{width:10px;height:10px;flex-shrink:0;background:#168769;border-radius:2px}.montaje .zone-dot{background:#b88726}.zone-summary{display:block;margin-top:12px;font-size:14px;color:#5b7062}.zone-summary b{font-size:23px;font-weight:500;color:#263f30}.zone-summary>span{white-space:nowrap}.plan-source{padding:6px 24px 22px;display:flex;flex-direction:column;gap:8px;color:#6b7d6e;font-size:13px;line-height:1.6}.plan-source b{font-weight:500;font-size:12px}.plan-source .pending-area{color:#8f661c}.area-filter{display:flex;gap:22px;align-items:center;margin:22px 0}.area-filter .field{min-width:280px;margin:0}.area-filter p{font-size:14px}.scope-notice{background:#edf4e9;border:1px solid #d8e5d0;color:#49633e;padding:16px 20px;border-radius:7px;margin-bottom:22px;font-size:14px;line-height:1.6}.sop-grid>.scope-notice{grid-column:1/-1;margin-bottom:0}.plan-compact .plan-zones{gap:8px}.plan-compact .plan-zone{padding:12px}.plan-compact .zone-caption{font-size:14px}.plan-compact .zone-summary{font-size:12px}.plan-compact .zone-summary b{font-size:20px}
 @media(max-width:600px){.plan-zones{grid-template-columns:1fr;padding:15px}.blueprint{margin:0 15px}.plan-source{padding:5px 15px 18px}.area-filter{align-items:stretch;flex-direction:column;gap:6px}.area-filter .field{min-width:0}}
 
-/* Pantalla de entrada. Reutiliza los tokens de la aplicación: el verde de acción,
-   el verde profundo de la barra lateral y las dos zonas del plano 08. */
-.login{min-height:100dvh;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr)}
-.login-plan{background:#102c2b;display:flex;flex-direction:column;justify-content:center;gap:34px;padding:48px}
-.login-plan svg{width:100%;max-height:52vh;display:block}
-.login-plan-key{display:flex;flex-wrap:wrap;gap:12px 28px;font-size:14px;color:#9bb6ab}
-.login-plan-key span{display:flex;align-items:center;gap:10px}
-.login-plan-key i{width:11px;height:11px;border-radius:2px;flex-shrink:0}
-.key-carton{background:#168769;border:1px solid #3fae8c}
-.key-montaje{background:#b88726;border:1px solid #d4a23f}
-.login-panel{background:#f6f8fa;display:flex;flex-direction:column;justify-content:center;padding:48px 56px;min-width:0}
-.login-panel>*{width:100%;max-width:380px}
-.login-brand b{font-size:22px;letter-spacing:1.4px;color:#17342c;display:block}
-.login-brand small{display:block;letter-spacing:2px;font-size:12px;margin-top:5px;color:#6d8478}
-.login-panel h1{margin-top:38px;font-size:32px}
-.login-panel>p{font-size:15px;margin-bottom:30px;max-width:340px}
-.login-form{display:flex;flex-direction:column;gap:18px}
-.login-field{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:500}
-.login-field input{background:#fff;border:1px solid #cad6cd;border-radius:6px;min-height:46px;padding:10px 12px;font-size:16px;font-weight:400;width:100%;outline-color:#146c52}
-.login-submit{display:inline-flex;justify-content:center;align-items:center;gap:9px;background:#146c52;color:#fff;border:1px solid #146c52;border-radius:6px;min-height:46px;padding:11px 17px;font-size:15px;font-weight:500;margin-top:6px}
-.login-submit:hover:not(:disabled){background:#10583f}
-.login-error{background:#fff0ed;border:1px solid #efc4ba;border-radius:7px;color:#8f3b28;padding:13px 15px;font-size:14px;margin:0}
-.login-foot{margin-top:40px;display:flex;flex-direction:column;gap:7px;font-size:12px;color:#7b8c81;line-height:1.6}
-@media (max-width:860px){
-  .login{grid-template-columns:1fr;grid-template-rows:auto 1fr}
-  .login-plan{padding:26px 24px;gap:18px}
-  .login-plan svg{max-height:150px}
-  .login-panel{padding:36px 24px 44px}
-  .login-panel>*{max-width:none}
-  .login-panel h1{margin-top:26px;font-size:27px}
-}
 .profile .logout{margin-left:auto;display:grid;place-items:center;width:34px;height:34px;border-radius:6px;color:#9bb6ab}
 .profile .logout:hover{background:#2b453e;color:#fff}
+
+/* Pantalla de entrada. Mismos tokens que la aplicación: el verde de acción, el
+   verde profundo de la barra lateral y los dos colores de zona del plano 08. */
+.login{min-height:100dvh;display:grid;grid-template-columns:minmax(0,1fr) 468px;background:#fff}
+.login-plan{background:#0e2725;display:flex;align-items:center;justify-content:center;padding:48px;overflow:hidden}
+.plan-sheet{width:100%;max-width:880px}
+.login-drawing{width:100%;display:block}
+.plan-titleblock{display:flex;flex-wrap:wrap;gap:16px 44px;align-items:flex-end;justify-content:space-between;border-top:1px solid #2c4a44;margin-top:26px;padding-top:18px}
+.plan-titleblock b{display:block;font-size:14px;font-weight:600;letter-spacing:.4px;color:#dbe9e3}
+.plan-titleblock span{display:block;font-size:12px;color:#7d9a90;margin-top:5px}
+.plan-titleblock dl{display:flex;flex-wrap:wrap;gap:12px 36px;margin:0;min-width:0}
+.plan-titleblock dt{font-size:13px;color:#c2d6ce;padding-left:16px;position:relative}
+.plan-titleblock dt::before{content:"";position:absolute;left:0;top:5px;width:9px;height:9px;border-radius:2px}
+.zone-carton dt::before{background:#4fbf99}
+.zone-montaje dt::before{background:#d9a848}
+.plan-titleblock dd{margin:4px 0 0 16px;font-size:12px;color:#6f8c83}
+
+.login-panel{display:flex;align-items:center;padding:56px;background:#fff;border-left:1px solid #e6ebe8}
+.login-column{width:100%;max-width:356px;margin:0 auto}
+.login-brand{display:flex;align-items:center;gap:13px}
+.login-mark{background:#daee8c;color:#18392f;width:40px;height:44px;display:grid;place-items:center;border-radius:9px;flex-shrink:0}
+.login-brand b{font-size:19px;letter-spacing:1.3px;color:#16332b;display:block;line-height:1}
+.login-brand small{display:block;letter-spacing:1.9px;font-size:11px;margin-top:6px;color:#789084}
+.login-panel h1{margin-top:44px;font-size:29px;letter-spacing:-.7px}
+.login-panel>.login-column>p{font-size:15px;color:#6d7f74;margin-top:9px}
+
+.login-form{display:flex;flex-direction:column;gap:0;margin-top:32px}
+.login-field{display:block;margin-bottom:18px}
+.login-field span{display:block;font-size:13px;font-weight:600;color:#3d5850;letter-spacing:.2px;margin-bottom:7px}
+.login-field input{background:#fbfcfb;border:1px solid #d3ded7;border-radius:7px;height:46px;padding:0 13px;font-size:15px;width:100%;color:#16332b;transition:border-color .12s,box-shadow .12s}
+.login-field input:hover{border-color:#b9cbc1}
+.login-field input:focus{outline:0;border-color:#146c52;box-shadow:0 0 0 3px rgba(20,108,82,.14);background:#fff}
+.login-submit{display:inline-flex;justify-content:center;align-items:center;gap:9px;background:#146c52;color:#fff;border:0;border-radius:7px;height:46px;font-size:15px;font-weight:600;letter-spacing:.2px;margin-top:6px;width:100%}
+.login-submit:hover:not(:disabled){background:#10583f}
+.login-error{background:#fdf1ee;border:1px solid #f0cdc3;border-left:3px solid #c1573a;border-radius:6px;color:#8d3b26;padding:12px 14px;font-size:14px;margin:0 0 20px;line-height:1.5}
+.login-foot{font-size:12px;color:#8a9a91;line-height:1.7;margin-top:34px;border-top:1px solid #edf1ef;padding-top:18px}
+
+@media (max-width:980px){
+  .login{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr}
+  .login-plan{padding:22px 24px 24px}
+  /* Keep the plan a band, so the form and its button stay above the fold. */
+  .login-drawing{max-height:124px}
+  .plan-titleblock{gap:10px 24px;margin-top:16px;padding-top:14px}
+  .plan-titleblock dl{gap:8px 22px}
+  .plan-titleblock dd{display:none}
+  .login-panel{padding:40px 24px 52px;border-left:0}
+  .login-panel h1{margin-top:34px;font-size:26px}
+}
