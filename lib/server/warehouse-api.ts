@@ -7,7 +7,7 @@ export interface WarehouseStore {
 }
 
 type AccessOptions = {
-  authorize?: (headers: Headers) => Response | null;
+  authorize?: (headers: Headers) => Promise<Response | null>;
   validateMutationOrigin?: (request: Request) => Response | null;
 };
 
@@ -18,7 +18,7 @@ function json(body: unknown, status = 200) {
 export function createWarehouseHandlers(getStore: () => WarehouseStore, access: AccessOptions = {}) {
   return {
     async GET(request: Request) {
-      const denied = access.authorize?.(request.headers);
+      const denied = await access.authorize?.(request.headers);
       if (denied) return denied;
       try {
         return json(await getStore().read());
@@ -29,7 +29,7 @@ export function createWarehouseHandlers(getStore: () => WarehouseStore, access: 
       }
     },
     async POST(request: Request) {
-      const denied = access.authorize?.(request.headers);
+      const denied = await access.authorize?.(request.headers);
       if (denied) return denied;
       if (request.headers.get('sec-fetch-site') === 'cross-site') {
         return json({ error: 'Solicitud no permitida.' }, 403);

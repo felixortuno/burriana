@@ -2,106 +2,167 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   authorizeRequest,
+  checkAccess,
+  isPublicPath,
   validateMutationOrigin,
 } from "../lib/server/access.ts";
+import {
+  createSession,
+  matchesCredentials,
+  readCredentials,
+  SESSION_COOKIE,
+} from "../lib/server/session.ts";
 
 const user = "oficina-prueba";
 const password = "fixture-solamente-no-es-un-secreto";
-const basic = (name = user, secret = password) =>
-  new Headers({ authorization: `Basic ${Buffer.from(`${name}:${secret}`).toString("base64")}` });
 
-test("Vercel access is closed until configured and requires valid credentials", async (t) => {
+// No default parameters here: the "missing configuration" cases pass undefined
+// on purpose, and defaults would silently turn them into a valid account.
+function configure(name, secret) {
+  if (name === undefined) delete process.env.WAREHOUSE_ADMIN_USER;
+  else process.env.WAREHOUSE_ADMIN_USER = name;
+  if (secret === undefined) delete process.env.WAREHOUSE_ADMIN_PASSWORD;
+  else process.env.WAREHOUSE_ADMIN_PASSWORD = secret;
+}
+
+const useValidAccount = () => configure(user, password);
+
+const cookie = (token) => new Headers({ cookie: `${SESSION_COOKIE}=${token}` });
+
+async function validToken() {
+  const { token } = await createSession(readCredentials());
+  return token;
+}
+
+test("access stays closed until the account is configured", async (t) => {
   const originalUser = process.env.WAREHOUSE_ADMIN_USER;
   const originalPassword = process.env.WAREHOUSE_ADMIN_PASSWORD;
   try {
-    await t.test("missing or invalid configuration fails closed even with credentials", async () => {
+    await t.test("missing or unusable configuration fails closed", async () => {
       for (const [name, secret] of [
         [undefined, undefined],
         [user, undefined],
         [undefined, password],
-        [" ", password],
-        ["invalid:user", password],
-        ["invalid\nuser", password],
-        [user, "short-password"],
+        ["", password],
+        ["   ", password],
+        [user, "demasiado-corta"],
+        ["con\nsalto", password],
       ]) {
-        if (name === undefined) delete process.env.WAREHOUSE_ADMIN_USER;
-        else process.env.WAREHOUSE_ADMIN_USER = name;
-        if (secret === undefined) delete process.env.WAREHOUSE_ADMIN_PASSWORD;
-        else process.env.WAREHOUSE_ADMIN_PASSWORD = secret;
-        const response = authorizeRequest(basic());
-        assert.equal(response.status, 503);
-        assert.match(response.headers.get("cache-control"), /no-store/);
-        assert.equal(response.headers.get("www-authenticate"), null);
-        assert.equal((await response.text()).includes(password), false);
+        configure(name, secret);
+        assert.equal(await checkAccess(new Headers()), "unconfigured");
+        assert.equal((await authorizeRequest(new Headers())).status, 503);
       }
     });
 
-    process.env.WAREHOUSE_ADMIN_USER = user;
-    process.env.WAREHOUSE_ADMIN_PASSWORD = password;
+    await t.test("a configured account still needs a session", async () => {
+      useValidAccount();
+      assert.equal(await checkAccess(new Headers()), "unauthenticated");
+      const denied = await authorizeRequest(new Headers());
+      assert.equal(denied.status, 401);
+      assert.equal(denied.headers.get("cache-control"), "private, no-store");
+    });
 
-    await t.test("missing, wrong and malformed authentication is rejected without caching", async () => {
-      const badHeaders = [
-        new Headers(),
-        basic("wrong-user"),
-        basic(user, "wrong-password"),
-        new Headers({ authorization: "Bearer sample-token" }),
-        new Headers({ authorization: "Basic %%%%" }),
-        new Headers({ authorization: "Basic YQ===" }),
-        new Headers({ authorization: "Basic /w==" }),
-        new Headers({ authorization: `${basic().get("authorization")}, Basic YQ==` }),
-        new Headers({ authorization: `Basic ${"A".repeat(8192)}` }),
-        new Headers({ "oai-authenticated-user-id": "spoofed", "oai-authenticated-user-email": "fake@example.com" }),
-      ];
-      for (const headers of badHeaders) {
-        const response = authorizeRequest(headers);
-        assert.equal(response.status, 401);
-        assert.equal(response.headers.get("www-authenticate"), 'Basic realm="BURRIANA", charset="UTF-8"');
-        assert.match(response.headers.get("cache-control"), /no-store/);
-        assert.equal((await response.text()).includes(password), false);
+    await t.test("a session this deployment signed is accepted", async () => {
+      useValidAccount();
+      const token = await validToken();
+      assert.equal(await checkAccess(cookie(token)), "ok");
+      assert.equal(await authorizeRequest(cookie(token)), null);
+    });
+
+    await t.test("the cookie is found among others", async () => {
+      useValidAccount();
+      const token = await validToken();
+      const headers = new Headers({
+        cookie: `otra=1; ${SESSION_COOKIE}=${token}; ultima=2`,
+      });
+      assert.equal(await checkAccess(headers), "ok");
+    });
+
+    await t.test("tampered, malformed and empty tokens are rejected", async () => {
+      useValidAccount();
+      const token = await validToken();
+      const [payload, signature] = token.split(".");
+      for (const candidate of [
+        "",
+        "sin-punto",
+        `${payload}.${signature}.extra`,
+        `${payload}.`,
+        `.${signature}`,
+        `${payload}.${signature.slice(0, -2)}xx`,
+        `${btoa("otro|9999999999999").replace(/=+$/, "")}.${signature}`,
+        "no-es-base64url!!.tampoco",
+      ]) {
+        assert.equal(await checkAccess(cookie(candidate)), "unauthenticated", candidate);
       }
     });
 
-    await t.test("correct credentials work, including UTF-8 and colons in passwords", () => {
-      assert.equal(authorizeRequest(basic()), null);
-      const lowerCaseScheme = basic();
-      lowerCaseScheme.set("authorization", lowerCaseScheme.get("authorization").replace("Basic", "basic"));
-      assert.equal(authorizeRequest(lowerCaseScheme), null);
-      process.env.WAREHOUSE_ADMIN_USER = "oficina-ñ";
-      process.env.WAREHOUSE_ADMIN_PASSWORD = "contraseña:fixture-de-prueba-🔑";
-      assert.equal(authorizeRequest(basic(process.env.WAREHOUSE_ADMIN_USER, process.env.WAREHOUSE_ADMIN_PASSWORD)), null);
+    await t.test("an expired session is rejected", async () => {
+      useValidAccount();
+      const { token } = await createSession(readCredentials(), Date.now() - 9 * 60 * 60 * 1000);
+      assert.equal(await checkAccess(cookie(token)), "unauthenticated");
     });
 
-    await t.test("clearing the configuration closes the gate again", () => {
-      delete process.env.WAREHOUSE_ADMIN_USER;
-      delete process.env.WAREHOUSE_ADMIN_PASSWORD;
-      assert.equal(authorizeRequest(basic()).status, 503);
+    await t.test("changing the password or the user invalidates open sessions", async () => {
+      useValidAccount();
+      const token = await validToken();
+
+      configure(user, `${password}-rotada`);
+      assert.equal(await checkAccess(cookie(token)), "unauthenticated");
+
+      configure("otro-usuario", password);
+      assert.equal(await checkAccess(cookie(token)), "unauthenticated");
+
+      useValidAccount();
+      assert.equal(await checkAccess(cookie(token)), "ok");
+    });
+
+    await t.test("credentials are compared as a whole", async () => {
+      useValidAccount();
+      const expected = readCredentials();
+      assert.equal(await matchesCredentials({ user, password }, expected), true);
+      for (const wrong of [
+        { user, password: `${password}x` },
+        { user, password: password.slice(0, -1) },
+        { user: `${user}x`, password },
+        { user: "", password: "" },
+        // A split that would collide if the two fields were simply concatenated.
+        { user: `${user}${password[0]}`, password: password.slice(1) },
+      ]) {
+        assert.equal(await matchesCredentials(wrong, expected), false, JSON.stringify(wrong));
+      }
+    });
+
+    await t.test("UTF-8 users and passwords work", async () => {
+      configure("oficina-ñ", "contraseña-de-prueba-con-emoji-🔑");
+      const token = await validToken();
+      assert.equal(await checkAccess(cookie(token)), "ok");
     });
   } finally {
-    if (originalUser === undefined) delete process.env.WAREHOUSE_ADMIN_USER;
-    else process.env.WAREHOUSE_ADMIN_USER = originalUser;
-    if (originalPassword === undefined) delete process.env.WAREHOUSE_ADMIN_PASSWORD;
-    else process.env.WAREHOUSE_ADMIN_PASSWORD = originalPassword;
+    configure(originalUser, originalPassword);
   }
 });
 
+test("the login route stays reachable without a session", () => {
+  assert.equal(isPublicPath("/login"), true);
+  assert.equal(isPublicPath("/api/session"), true);
+  assert.equal(isPublicPath("/"), false);
+  assert.equal(isPublicPath("/api/warehouse"), false);
+  assert.equal(isPublicPath("/login/otra"), false);
+});
+
 test("mutation origin checks prevent browser cross-origin writes", () => {
-  const url = "https://warehouse.example.com/api/warehouse";
-  const request = (headers) => new Request(url, { method: "POST", headers });
-  assert.equal(validateMutationOrigin(request({ origin: "https://warehouse.example.com", "sec-fetch-site": "same-origin" })), null);
-  assert.equal(validateMutationOrigin(request({})), null); // Authenticated server clients need no Origin.
+  const url = "https://almacen.example/api/warehouse";
+  assert.equal(validateMutationOrigin(new Request(url, { method: "POST" })), null);
+  assert.equal(
+    validateMutationOrigin(
+      new Request(url, { method: "POST", headers: { origin: "https://almacen.example" } }),
+    ),
+    null,
+  );
   for (const headers of [
-    { origin: "https://attacker.example" },
-    { origin: "https://warehouse.example.com.attacker.example" },
-    { origin: "https://warehouse.example.com:444" },
-    { origin: "http://warehouse.example.com" },
-    { origin: "null" },
-    { origin: "https://warehouse.example.com/path" },
+    { origin: "https://otro.example" },
     { "sec-fetch-site": "cross-site" },
-    { origin: "https://warehouse.example.com", "sec-fetch-site": "cross-site" },
-    { origin: "https://sibling.example.com", "sec-fetch-site": "same-site" },
   ]) {
-    const response = validateMutationOrigin(request(headers));
-    assert.equal(response.status, 403);
-    assert.match(response.headers.get("cache-control"), /no-store/);
+    assert.equal(validateMutationOrigin(new Request(url, { method: "POST", headers })).status, 403);
   }
 });

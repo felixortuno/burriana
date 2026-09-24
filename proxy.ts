@@ -1,8 +1,32 @@
 import { NextResponse } from "next/server";
-import { authorizeRequest } from "@/lib/server/access";
+import { checkAccess, isPublicPath, LOGIN_PATH } from "@/lib/server/access";
 
-export function proxy(request: Request) {
-  return authorizeRequest(request.headers) ?? NextResponse.next();
+export async function proxy(request: Request) {
+  const url = new URL(request.url);
+  if (isPublicPath(url.pathname)) return NextResponse.next();
+
+  const access = await checkAccess(request.headers);
+  if (access === "ok") return NextResponse.next();
+
+  if (access === "unconfigured") {
+    return NextResponse.json(
+      { error: "El acceso al almacén todavía no está configurado." },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  // The app fetches its own API, so answer it in JSON instead of redirecting a
+  // fetch() into an HTML page it cannot read.
+  if (url.pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      { error: "Tu sesión ha caducado. Vuelve a entrar." },
+      { status: 401, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+
+  const login = new URL(LOGIN_PATH, url);
+  if (url.pathname !== "/") login.searchParams.set("desde", url.pathname);
+  return NextResponse.redirect(login);
 }
 
 export const config = {
