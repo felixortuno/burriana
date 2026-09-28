@@ -159,3 +159,14 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px}button{curso
   .login-panel{padding:40px 24px 52px;border-left:0}
   .login-panel h1{margin-top:34px;font-size:26px}
 }
+
+/* Lectura de etiqueta por foto, en el alta de referencia. */
+.photo-read{margin-bottom:20px;padding:16px;border:1px dashed #b9cbc1;border-radius:8px;background:#f7faf8}
+.photo-button{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:44px;background:#fff;border:1px solid #cbd9d0;border-radius:7px;font-size:14px;font-weight:600;color:#1d5240}
+.photo-button:hover:not(:disabled){background:#eef5f0;border-color:#a8c2b3}
+.photo-help{font-size:12px;line-height:1.55;color:#6b7f74;margin:11px 0 0}
+.photo-note{font-size:13px;line-height:1.5;color:#7a5a17;background:#fdf6e6;border:1px solid #ecd9a8;border-radius:6px;padding:10px 12px;margin:11px 0 0}
+.photo-error{font-size:13px;line-height:1.5;color:#8d3b26;background:#fdf1ee;border:1px solid #f0cdc3;border-radius:6px;padding:10px 12px;margin:11px 0 0}
+.spin{animation:photo-spin 1s linear infinite}
+@keyframes photo-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
