@@ -21,6 +21,9 @@ function text(value, label, required = true, max = 180) {
 function integer(value, label, min = 0, max = 1000000) {
   if (!Number.isSafeInteger(value) || value < min || value > max) fail(`«${label}» debe ser un entero entre ${min} y ${max}.`);
 }
+function quarters(value, label, min, max) {
+  if (typeof value !== 'number' || !Number.isInteger(value * 4) || value < min || value > max) fail(`«${label}» debe ser un número de palets en cuartos entre ${min} y ${max}.`);
+}
 function boolean(value, label) {
   if (typeof value !== 'boolean') fail(`«${label}» debe ser booleano.`);
 }
@@ -86,7 +89,7 @@ export function validateWarehouseBackup(file) {
     text(location.zone, 'locations.zone');
     if (location.area !== undefined && !isWarehouseArea(location.area)) fail('Área de ubicación no válida.');
     integer(location.capacity, 'locations.capacity', 1);
-    integer(location.qty, 'locations.qty', 0, location.capacity);
+    quarters(location.qty, 'locations.qty', 0, location.capacity);
     code(location.sku, 'locations.sku', true);
     if (location.qty === 0 ? location.sku !== '' : !skus.has(location.sku)) fail('El SKU de una ubicación no corresponde a sus existencias o al catálogo.');
   }
@@ -94,7 +97,7 @@ export function validateWarehouseBackup(file) {
     timestamp(movement.date, 'movements.date');
     oneOf(movement.kind, ['entrada', 'salida', 'traslado', 'consumo', 'produccion'], 'movements.kind');
     if (!skus.has(movement.sku) || !locations.has(movement.location)) fail('Un movimiento referencia un SKU o bloque inexistente.');
-    integer(movement.qty, 'movements.qty', 1);
+    quarters(movement.qty, 'movements.qty', 0.25, 1000000);
     text(movement.operator, 'movements.operator');
     if (movement.actorId !== undefined) text(movement.actorId, 'movements.actorId');
     text(movement.document, 'movements.document', movement.kind === 'salida');

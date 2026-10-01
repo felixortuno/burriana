@@ -1,56 +1,50 @@
-# BURRIANA - GTR SOLUTIONS-
+# BURRIANA · GTR SOLUTIONS
 
-Aplicación privada de gestión del almacén para el ordenador de oficina.
+Aplicación de coordinación e inventario para el almacén de cartón y cajas. Palets completos; un viaje transforma planchas en cajas para reponer stock.
 
-## Guía del backend y puesta en marcha
+## Primera fase
 
-Consulta la [guía técnica y operativa del 1 de octubre de 2026](docs/BACKEND_Y_PUESTA_EN_MARCHA.md) para conocer el esquema de datos, las rutas de API, las reglas de stock, el procedimiento de carga inicial y el trabajo pendiente. Incluye los dos perfiles solicitados, **oficina y operarios**, como propuesta pendiente de implementar. También está disponible en [formato de lectura e impresión](docs/BACKEND_Y_PUESTA_EN_MARCHA.html).
+- **Pantalla sobre la puerta** (`/pantalla`): turno, almuerzo, avisos, viajes, pedidos, cargas/descargas y mantenimiento/limpieza. Solo lectura; consulta cada 10 segundos y rota las listas cada 15.
+- **Encargado** (`/`, `/operaciones`, `/inventario`): organiza el trabajo, confirma avances y gestiona referencias, bloques y stock.
+- **Administrador** (`/usuarios`): dashboard global, todas las operaciones y alta/desactivación de accesos.
+- Completar un viaje consume planchas y registra cajas en un único guardado, con dos movimientos vinculados. Las cantidades de origen/destino pueden ser distintas y siempre son palets enteros.
+- Mantenimiento y limpieza pueden repetirse tras su finalización. El encargado decide prioridades, urgencias e inicio.
 
-## Primer uso
+Los pedidos, cargas y descargas son órdenes de trabajo. Sus entradas/salidas de stock se registran por separado; todavía no hay reservas ni líneas de pedido. Las tablets para confirmar trabajo por operarios son una fase futura.
 
-1. En **Inventario**, crea las referencias con un SKU único, descripción, familia y mínimo en palets.
-2. En **Ubicaciones**, consulta el detalle del plano 08 y crea cada bloque físico (por ejemplo CAR-A-01 o CAJ-A-01), asignándolo a **Almacén de cartón** o **Montaje y almacenaje de cajas**, con su pasillo y capacidad validada. Las ubicaciones anteriores sin zona se conservan como pendientes de asignar; pueden seguir teniendo salidas, pero requieren asignación antes de recibir entradas o traslados. No hay un plano ni existencias ficticias.
-3. En **Movimientos**, registra el inventario inicial como entradas, con responsable y comprobación del etiquetado.
-4. Edita las tareas del **Plan 5S** para asignar nombres y fechas reales.
-5. Cada día, completa **Cierre de turno** y registra el nombre de quien revisa. El día y la hora se calculan en Europe/Madrid.
+Consulta la **[guía completa del backend y puesta en marcha](docs/BACKEND_Y_PUESTA_EN_MARCHA.md)** o su [versión HTML imprimible](docs/BACKEND_Y_PUESTA_EN_MARCHA.html). Describe campos, permisos, rutas, producción, copias y carga inicial. Los pendientes están en [TODO_APP.md](TODO_APP.md).
 
-## Alcance
+## Desarrollo seguro con datos locales
 
-- Catálogo editable, búsqueda, alerta por mínimo y exportación CSV compatible con Excel.
-- Detalle del plano 08 (diciembre de 2022, estado proyectado), con las dos zonas de cartón y cajas delimitadas. Cerámica, exposición, oficinas, instalaciones y muelle no son zonas de stock de la app. La franja inferior contigua forma parte de montaje y almacenaje de cajas.
-- Las agrupaciones de palets y máquinas del dibujo son referencias del proyecto, no existencias ni capacidades calculadas. Los bloques registrados se listan por zona y pasillo, sin atribuirles posiciones a escala. Una referencia por bloque.
-- Entradas, salidas y traslados de palets completos; no gestiona palets parciales, lotes o unidades interiores.
-- No permite stock negativo, exceder capacidad o mezclar referencias en un bloque ocupado.
-- Salidas con albarán, responsable y confirmación de doble comprobación.
-- Entrada y traslado con etiquetado confirmado; revisión adicional cuando se declara apilado a doble altura.
-- Tareas 5S con responsable, fecha objetivo y estado. El checklist diario guarda nombre, fecha y hora del cierre; las tareas todavía no registran quién las completó ni cuándo. El nombre registrado no es una firma electrónica certificada.
-- Protocolo y checklist imprimibles; descarga de datos en JSON. La copia JSON es un archivo de datos; no hay restauración desde la interfaz.
+Node 22.13 o superior. Instalar con `npm ci`. Configurar `WAREHOUSE_ADMIN_USER` y `WAREHOUSE_ADMIN_PASSWORD` en `.env.local`.
 
-## Datos y acceso
-
-La versión publicada necesita conexión a Internet. Los datos se guardan en la base de datos de la aplicación, no en el navegador ni únicamente en el ordenador. El acceso es privado mediante una pantalla de entrada en `/login`: define `WAREHOUSE_ADMIN_USER` y `WAREHOUSE_ADMIN_PASSWORD`. Sin esas variables la aplicación responde 503 y no expone nada. La sesión se guarda en una cookie firmada, `HttpOnly` y `SameSite=Lax`, que dura un turno de ocho horas; la clave de firma se deriva de la contraseña, de modo que cambiarla cierra todas las sesiones abiertas. No hay roles de operario: los nombres escritos en los formularios sirven para atribuir operaciones dentro del uso de oficina.
-
-El estado se guarda como un documento JSON en Postgres (Supabase) con revisión optimista y actualización atómica. La tabla `public.warehouse` tiene RLS activada y no concede acceso a los roles públicos del Data API; el servidor accede con su conexión privada. El diseño está pensado para un almacén pequeño con uso desde oficina. Un conflicto entre pestañas se rechaza y recarga los datos, manteniendo el formulario. Un cambio de stock y su movimiento se guardan juntos. No hay borrado de movimientos desde la interfaz.
-
-Los controles del sistema recogen las comprobaciones del equipo; la capacidad de las ubicaciones y la autorización física de apilado se deben establecer con los responsables del almacén.
-
-## Desarrollo
-
-Node 22.13 o superior. `npm ci`, `npm run dev`.
-
-- `vercel env pull`: traer las variables del proyecto, incluida `POSTGRES_URL`.
-- `npm run build`: compilar la aplicación.
-- `npx tsc --noEmit`: comprobación de tipos.
-- `npm test`: reglas de inventario, atomicidad, cierre y control de acceso.
-
-La tabla `public.warehouse` se crea sola en el primer arranque, dentro de una transacción con un bloqueo de aviso, de modo que varias instancias simultáneas no compitan. La inicialización también activa RLS y revoca los permisos de `anon`, `authenticated` y `PUBLIC` sobre una tabla existente, sin cambiar datos ni revisión. No hay migraciones que aplicar a mano. Consulta [la protección y su verificación](db/security.md) y [la lista priorizada de trabajo](TODO_APP.md).
-
-Para cargar una copia de seguridad en la base de datos:
-
-```
-node --experimental-strip-types --env-file=.env.local scripts/import-state.mjs copia.json
+```sh
+WAREHOUSE_LOCAL_DATA_DIR=outputs/dev-data/mi-prueba npm run dev -- --webpack --hostname 127.0.0.1
 ```
 
-Acepta el archivo que genera «Descargar copia de datos». Se niega a sobrescribir una base con datos salvo que añadas `--force`.
+El modo explícito local escribe `warehouse.json` y `users.json` en ese directorio y se rechaza en producción. Un directorio nuevo empieza sin inventario ni órdenes. La demostración de esta entrega está en `outputs/dev-data/refocus`, identificada como DEMO LOCAL.
 
-El despliegue se gestiona con Vercel. Las funciones y la base de datos están en `cdg1` / `eu-west-3` (París) para que no se hablen a través del Atlántico. No subir archivos `.env` ni datos locales.
+**Sin `WAREHOUSE_LOCAL_DATA_DIR`, incluso en desarrollo, se usa Postgres**: `DATABASE_URL` tiene prioridad sobre `POSTGRES_URL`. No hacer ensayos de escritura con las variables de producción. No subir `.env` ni copias de datos.
+
+```sh
+npm test
+npm run lint
+npx tsc --noEmit
+npm run build -- --webpack
+```
+
+## Persistencia y acceso
+
+Next.js sirve UI y API. Postgres conserva el estado del almacén en `public.warehouse` como JSON con revisión optimista; stock e histórico se guardan juntos. `public.warehouse_users` guarda cuentas individuales con contraseña scrypt, rol, estado activo y versión de sesión. La inicialización idempotente crea/protege las tablas con RLS y revoca acceso público. Los permisos de negocio se verifican en el servidor.
+
+La cuenta principal procede del entorno y no se puede desactivar desde la interfaz. Las sesiones duran ocho horas; desactivar o modificar una cuenta revoca sus tokens anteriores. La pantalla tiene cuenta propia de consulta, sin acceso al inventario completo ni a escrituras.
+
+La copia JSON incluye órdenes y horarios, pero **no cuentas**. El importador valida antes de restaurar:
+
+```sh
+node --experimental-strip-types scripts/import-state.mjs copia.json --check
+```
+
+La restauración escribe en la base definida por el entorno y reemplaza todo el estado; requiere `--force` si ya hay datos o configuración personalizada. Debe ensayarse con copia previa en una base aislada, incluyendo la recuperación de usuarios por separado. Consulta la guía antes de ejecutarla.
+
+Esta revisión no despliega la nueva versión ni carga el inventario real. Antes del primer turno: validar con Postgres de pruebas, verificar recuperación, crear accesos reales, configurar el dispositivo de pantalla y conciliar un recuento físico.

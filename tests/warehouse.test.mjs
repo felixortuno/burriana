@@ -9,7 +9,7 @@ for(const code of ['A-01','A-02','A-03'])apply({type:'location',code,zone:'Pasil
 const base={type:'movement',kind:'entrada',sku:'REF-A',qty:5,location:'A-01',operator:'Prueba',labelled:true};
 apply(base);assert.equal(s.locations[0].qty,5);
 const unchanged=JSON.stringify(s);
-for(const [action,error] of [[{...base,qty:4},/capacidad/],[{...base,qty:-1},/entero/],[{...base,qty:1.5},/entero/],[{...base,sku:'REF-B',qty:1},/una sola referencia/],[{...base,labelled:false},/etiquetas/],[{...base,qty:1,stacked:true,safe:false},/inferior/],[{...base,kind:'salida',qty:6,verified:true,document:'ALB-1'},/suficientes/],[{...base,kind:'salida',qty:1,verified:false,document:'ALB-1'},/doble revisión/],[{...base,kind:'salida',qty:1,verified:true,document:''},/Albarán/]]){assert.throws(()=>applyAction(s,action),error);assert.equal(JSON.stringify(s),unchanged)}
+for(const [action,error] of [[{...base,qty:4},/capacidad/],[{...base,qty:-1},/cuartos/],[{...base,qty:0},/cuartos/],[{...base,qty:1.3},/cuartos/],[{...base,sku:'REF-B',qty:1},/una sola referencia/],[{...base,labelled:false},/etiquetas/],[{...base,qty:1,stacked:true,safe:false},/inferior/],[{...base,kind:'salida',qty:6,verified:true,document:'ALB-1'},/suficientes/],[{...base,kind:'salida',qty:1,verified:false,document:'ALB-1'},/doble revisión/],[{...base,kind:'salida',qty:1,verified:true,document:''},/Albarán/]]){assert.throws(()=>applyAction(s,action),error);assert.equal(JSON.stringify(s),unchanged)}
 apply({...base,kind:'traslado',qty:3,destination:'A-02'});assert.equal(s.locations[0].qty,2);assert.equal(s.locations[1].qty,3);assert.equal(s.locations.reduce((n,l)=>n+l.qty,0),5);
 apply({...base,kind:'entrada',sku:'REF-B',qty:1,location:'A-03'});
 const pre=JSON.stringify(s);assert.throws(()=>applyAction(s,{...base,kind:'traslado',qty:2,destination:'A-03'}),/una sola referencia/);assert.equal(JSON.stringify(s),pre);
@@ -37,4 +37,7 @@ assert.equal(signed.closures[0].actorId,actor.id);
 assert.throws(()=>applyAction(s,{type:'product',id:'missing',sku:'NEW',name:'Unexpected',family:'Cartón',minimum:0}),/no encontrada/);
 assert.throws(()=>applyAction(s,{type:'location',id:'missing',code:'NEW',zone:'A',area:'carton',capacity:8}),/no encontrada/);
 assert.throws(()=>applyAction(s,{type:'task',title:'Fecha imposible',zone:'A',owner:'Equipo',due:'2026-02-30',done:false}),/Fecha/);
-console.log('OK: autor autenticado, cierre, ediciones inexistentes y calendario real.');
+{let q=initialState();const at=new Date('2026-09-30T12:00:00Z');q=applyAction(q,{type:'product',sku:'Q',name:'Fracción',family:'Planchas',minimum:0},at);q=applyAction(q,{type:'location',code:'Q-01',zone:'A',area:'carton',capacity:8},at);
+q=applyAction(q,{type:'movement',kind:'entrada',sku:'Q',qty:6.75,location:'Q-01',operator:'Prueba',labelled:true},at);q=applyAction(q,{type:'movement',kind:'salida',sku:'Q',qty:0.25,location:'Q-01',operator:'Prueba',verified:true,document:'ALB-Q'},at);assert.equal(q.locations[0].qty,6.5);
+q=applyAction(q,{type:'movement',kind:'salida',sku:'Q',qty:6.5,location:'Q-01',operator:'Prueba',verified:true,document:'ALB-Q'},at);assert.equal(q.locations[0].qty,0);assert.equal(q.locations[0].sku,'');}
+console.log('OK: autor autenticado, cierre, ediciones inexistentes, calendario real y cuartos de palet.');

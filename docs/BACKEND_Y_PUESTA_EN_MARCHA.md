@@ -1,80 +1,100 @@
-# Backend de Burriana y puesta en marcha del inventario
+# Backend de Burriana y puesta en marcha
 
-Guía técnica y operativa para oficina y operarios
+Guía técnica y operativa · Nuevo enfoque del almacén
 
-Revisión del 1 de octubre de 2026 · Código base `92e78d2` · GTR Solutions
+Revisión del 1 de octubre de 2026 · GTR Solutions · Implementación local pendiente de despliegue
 
-La aplicación ya está publicada y puede gestionar referencias, ubicaciones y movimientos de palets completos. La comprobación del 1 de octubre confirma que el inventario todavía está vacío. Para empezar a utilizarla con oficina y operarios hay que completar los permisos de ambos perfiles, asegurar los reintentos y la recuperación, y preparar los datos reales de la nave.
+Esta guía describe el código después del cambio de enfoque. Sustituye la propuesta inicial de dos perfiles «oficina y operarios». Ahora existen **administrador, encargado y pantalla**. Los operarios consultan una pantalla sobre la puerta; durante la primera fase, el encargado registra los avances. El administrador también puede operar. Las tablets para que el equipo confirme trabajos quedan para una segunda fase.
 
-Este documento explica el backend que existe, cómo recoge y muestra los datos y qué falta para el uso real. Las secciones 2 a 9 describen la implementación actual; la sección 10 define la propuesta de perfiles, aún pendiente. La sección 11 explica cómo preparar el inventario y las secciones 12 a 14 ordenan la puesta en marcha. Dos perfiles significan dos tipos de permisos; puede haber varias personas dentro de cada perfil.
+Un **viaje** es la transformación de planchas en cajas para reponer stock. No significa transporte de camión. Tanto el consumo como la producción y el resto del inventario se cuentan en **palets completos**.
 
-## 1 Estado comprobado
+La app local contiene una demostración identificada como «DEMO LOCAL», con referencias y órdenes ficticias. No representa el inventario de la nave. En esta implementación no se ha desplegado la nueva versión ni se han escrito operaciones en la base publicada.
 
-| Comprobación | Resultado del 1 de octubre de 2026 |
-| --- | --- |
-| Aplicación publicada | `https://burriana.vercel.app` responde; login 200 y acceso anónimo a la portada redirigido a login |
-| Lectura con sesión | 200; revisión 0; 0 referencias, 0 ubicaciones, 0 movimientos, 0 cierres y 9 tareas iniciales |
-| API sin sesión | Inventario y lectura de fotografías rechazan con 401 |
-| Solicitud de escritura desde otro origen | Rechazada con 403 antes de modificar inventario |
-| Base de datos | RLS activa en `public.warehouse`; sin permisos de tabla para PUBLIC, anon y authenticated; Data API anónimo rechazado con 401 y código 42501 |
-| Arranque local | `npm run dev -- --webpack --hostname 127.0.0.1`; disponible en `http://127.0.0.1:3000` |
-| API local | Login y lectura 200; mismo inventario vacío; cookie HttpOnly y SameSite=Lax, sin Secure en desarrollo HTTP |
-| Navegador local | Login, resumen autenticado e inventario vacío comprobados en Chrome de escritorio |
-| Pruebas | Pasa el script de dominio y las 15 pruebas reportadas por node:test: 13 de acceso y 2 del adaptador Postgres simulado |
-| Compilación | `npm run build -- --webpack` correcto, incluida comprobación de TypeScript |
-| Compilador predeterminado | `npm run build` bloqueado localmente por EPERM al abrir un puerto interno de Turbopack; no demuestra un defecto funcional de la app |
-| Lint | 5 errores y 1 aviso pendientes en `app/page.tsx` |
+## 1. Qué hay implementado y qué falta
 
-Las comprobaciones de acceso no han creado referencias, movimientos ni cierres. La lectura de la API puede ejecutar la inicialización idempotente de esquema y permisos descrita en la sección 3. Las pruebas automatizadas usan memoria o adaptadores simulados, no acreditan por sí solas concurrencia y recuperación en Postgres real.
+| Área | Implementado en el código local | Pendiente para el uso real |
+| --- | --- | --- |
+| Pantalla del almacén | Reloj de Madrid, turno, almuerzo, aviso, trabajo destacado, producción/pedidos, muelle y mantenimiento/limpieza; actualización automática | Probar tamaño, distancia de lectura, conexión y arranque en el televisor real |
+| Encargado | Crear, editar, empezar, pausar, completar y cancelar órdenes; horarios; stock, movimientos, ubicaciones y cierre | Alta de referencias, bloques, capacidades y recuento inicial reales |
+| Administrador | Dashboard global, todas las operaciones y alta/desactivación de cuentas | Crear cuentas individuales y una cuenta exclusiva para la pantalla en el entorno definitivo |
+| Viajes | Consumo de planchas y producción de cajas en un único guardado, vinculados a la orden | Definir los SKU reales de planchas/cajas y confirmar las cantidades de cada viaje |
+| Mantenimiento y limpieza | Programación manual y repetición tras completar; el encargado decide inicio y cierre | Concretar máquinas, trabajos, frecuencias y responsables |
+| Pedidos y camiones | Órdenes con referencia, instrucciones, matrícula y hora prevista; estados e historial | Si se necesita, añadir líneas de pedido, reservas y vínculo automático con entradas/salidas |
+| Datos y seguridad | Roles comprobados en servidor, identidades, revocación, hashes de contraseña, control de revisión | Ensayo del nuevo esquema de usuarios, concurrencia y restauración en Postgres de pruebas |
+| Copias | JSON del estado completo; importador con validación local `--check` | Copia de la tabla de usuarios, copias automáticas y ensayo de recuperación |
+| Tablets | La identidad y los eventos permiten ampliación | Interfaz de operario, permisos, identificación y confirmación desde las columnas |
 
-La sesión de desarrollo usa las variables existentes de `.env.local`. Arrancar localmente no crea una base de datos de pruebas independiente: antes de hacer ensayos con altas o movimientos hay que configurar una base aislada. No se ha realizado un nuevo despliegue en esta revisión.
+La primera fase funcional está implementada y ensayada localmente. Eso no equivale a acreditar una puesta en producción con datos reales: las pruebas de base remota, dispositivos físicos y recuperación siguen pendientes.
 
-## 2 Cómo está organizado el backend
+## 2. Perfiles y pantallas
 
-La aplicación es un proyecto Next.js con React. La misma aplicación sirve las pantallas y las rutas HTTP del servidor. El backend no es un servidor Express separado. Usa la librería `postgres` para conectar directamente con Postgres alojado en Supabase; no utiliza Supabase Auth, Storage ni Realtime en el flujo actual.
+| Capacidad | Administrador | Encargado | Pantalla |
+| --- | --- | --- | --- |
+| Dashboard, stock e inventario completo | Sí | Sí | No |
+| Crear y organizar órdenes | Sí | Sí | No |
+| Marcar inicio, pausa, finalización o cancelación | Sí | Sí | No |
+| Configurar turno, almuerzo y aviso | Sí | Sí | No |
+| Dar de alta referencias y ubicaciones | Sí | Sí | No |
+| Entradas, salidas, traslados y cierre | Sí | Sí | No |
+| Descargar CSV y copia JSON del almacén | Sí | Sí | No |
+| Crear o desactivar cuentas | Sí | No | No |
+| Consultar la pantalla de trabajo | Sí | Sí | Sí |
+
+Las rutas son `/` para el dashboard, `/operaciones` para organizar el turno, `/inventario` para existencias y movimientos, `/usuarios` para accesos y `/pantalla` para el dispositivo sobre la puerta. Una cuenta de pantalla se dirige a `/pantalla`; el servidor deniega su acceso al inventario y a las mutaciones, aunque intente invocar la API directamente.
+
+El administrador y el encargado ven los mismos datos del almacén. La diferencia está en la gestión de accesos y en el contexto de su portada. No hay almacenes separados por usuario ni permisos por pasillo. La pantalla recibe una proyección de órdenes y horarios; no recibe el inventario completo ni las contraseñas.
+
+En «Personas y accesos», eliminar se realiza como **desactivación**. Se revoca la sesión y se conserva el registro para mantener la autoría. No se reutiliza el mismo nombre de usuario. La cuenta principal definida en el servidor no se puede desactivar desde la app; tampoco se permite desactivar la propia cuenta.
+
+## 3. Arquitectura y archivos
+
+La aplicación es Next.js con React. El mismo proyecto sirve la interfaz y las rutas HTTP; no hay un servidor Express aparte. La persistencia de producción es Postgres alojado en Supabase, conectado desde el servidor con `postgres`. No se usa Supabase Auth ni Realtime para estos flujos.
 
 ```text
-Pantallas React y formularios
-        │ petición HTTP con cookie de sesión
-        ▼
-Proxy y autorización de la API
-        │ comprobar acceso y origen de escrituras
-        ▼
-GET /api/warehouse → leer el estado
-POST /api/warehouse → validar petición y revisión
-        │ POST aplica reglas a una copia con applyAction
-        ▼
-WarehouseStore y postgres.js
-        │ lectura o escritura SQL condicional
-        ▼
-Supabase Postgres
-public.warehouse → una fila → cinco colecciones JSON
+Navegador: administrador / encargado / pantalla
+    │ cookie firmada + petición HTTP
+    ▼
+proxy.ts: comprobar firma y vencimiento
+    ▼
+API: resolver usuario activo y rol en servidor
+    │ comprobar origen y validar la petición
+    ▼
+applyAction: copiar estado y aplicar reglas
+    ▼
+WarehouseStore: guardar solo si coincide revision
+    ▼
+Postgres privado
+    ├── public.warehouse: inventario, órdenes y turno
+    └── public.warehouse_users: cuentas individuales
 ```
 
-| Archivo | Responsabilidad |
+| Archivo o carpeta | Responsabilidad |
 | --- | --- |
-| `app/page.tsx` | Siete vistas, formularios, llamadas a la API, cálculos para pantalla y exportaciones |
-| `app/warehouse-plan.tsx` y `lib/areas.ts` | Plano de referencia y dos zonas admitidas |
-| `proxy.ts` | Redirigir visitantes sin sesión y proteger rutas |
-| `lib/server/session.ts` | Credenciales de oficina, firma y verificación de sesiones |
-| `lib/server/access.ts` | Autorización de peticiones y comprobación del origen de escrituras |
-| `app/api/session/route.ts` | Entrada, salida y contador de intentos de acceso |
-| `app/api/warehouse/route.ts` | Publicar GET y POST del almacén |
-| `lib/server/warehouse-handlers.ts` | Conectar autorización, reglas HTTP y almacenamiento |
-| `lib/server/warehouse-api.ts` | Contrato HTTP, revisión, respuestas de error y guardado |
-| `lib/warehouse.ts` | Tipos de datos, estado inicial y reglas de inventario, tareas y cierres |
-| `db/postgres-warehouse.ts` | Esquema SQL y escritura atómica condicionada por revisión |
-| `db/supabase-warehouse.ts` | Configurar la conexión y crear/proteger la tabla |
-| `app/api/reference-photo/route.ts` y `lib/server/reference-photo.ts` | Recibir fotografías y pedir extracción de campos a un proveedor de IA |
-| `scripts/import-state.mjs` | Restaurar administrativamente un estado JSON completo |
+| `app/components/management.tsx` y `.css` | Dashboard, órdenes, horarios y administración de cuentas |
+| `app/components/management-user.ts` | Resolver identidad y proteger las páginas de gestión |
+| `app/inventario/inventory-client.tsx` | Catálogo, bloques, movimientos, plan 5S, cierre y exportaciones |
+| `app/pantalla/board.tsx` y `.css` | Panel de lectura, reloj, avisos, refresco y rotación de listas |
+| `hooks/use-warehouse.ts` | Lectura común, sincronización, guardado y tratamiento de conflictos |
+| `lib/identity.ts` | Roles y tipos públicos de identidad, sin contraseñas |
+| `lib/warehouse.ts` | Estado, inventario, movimientos, cierre y producción atómica |
+| `lib/operations.ts` | Órdenes, estados, prioridades, recurrencia, turno y almuerzo |
+| `lib/server/warehouse-api.ts` | Contrato de lectura/escritura y revisión optimista |
+| `lib/server/warehouse-handlers.ts` | Conectar API con permisos, identidad y almacenamiento |
+| `lib/server/store.ts` | Elegir Postgres o almacenamiento local explícito de desarrollo |
+| `db/postgres-warehouse.ts` | SQL del estado y escritura condicional |
+| `db/supabase-warehouse.ts` | Conexión privada e inicialización del almacén |
+| `lib/server/session.ts` | Credenciales principales, firma HMAC y cookies |
+| `lib/server/access.ts` | Resolver identidad actual y comprobar permisos/origen |
+| `lib/server/users.ts` y `users-store.ts` | Hash de contraseñas, altas, cambios, desactivaciones y persistencia de cuentas |
+| `lib/server/users-api.ts` | API administrativa de cuentas |
+| `app/api/board/route.ts` | Proyección limitada de órdenes y horarios para la pantalla |
+| `scripts/import-state.mjs` | Validar o restaurar el estado del almacén |
 
-`app/chatgpt-auth.ts` contiene utilidades heredadas que no están conectadas al acceso actual. No debe interpretarse como un segundo sistema de usuarios activo.
+## 4. Cómo se guarda la información
 
-## 3 Cómo se guarda la información
+### Estado único del almacén
 
-### Tabla y documento de estado
-
-Actualmente existe una tabla operativa con una única fila posible:
+La tabla operativa tiene una única fila posible:
 
 ```sql
 CREATE TABLE IF NOT EXISTS public.warehouse (
@@ -84,7 +104,7 @@ CREATE TABLE IF NOT EXISTS public.warehouse (
 );
 ```
 
-`id` identifica el almacén único. `revision` es el contador global de cambios, no la versión del esquema. `data` contiene el estado completo:
+`revision` cuenta cambios del estado; no es la versión del formato. `data` contiene seis colecciones y un objeto de configuración:
 
 ```json
 {
@@ -92,424 +112,265 @@ CREATE TABLE IF NOT EXISTS public.warehouse (
   "locations": [],
   "movements": [],
   "tasks": [],
-  "closures": []
+  "closures": [],
+  "workOrders": [],
+  "shift": {
+    "startTime": "07:00",
+    "endTime": "15:00",
+    "lunchStart": "",
+    "lunchEnd": "",
+    "announcement": ""
+  }
 }
 ```
 
-Este ejemplo muestra la estructura, no una copia para importar. Si no hay fila, el servidor devuelve existencias vacías y nueve tareas 5S predefinidas en memoria. Leer ese estado inicial no inserta la fila; el primer guardado válido crea la revisión 1.
+El ejemplo explica la estructura; no es una copia para importar. El estado inicial también propone nueve tareas 5S. Los documentos antiguos, sin `workOrders` o `shift`, se normalizan al leer: se añaden órdenes vacías y el turno por defecto, con el almuerzo sin fijar. La lectura por sí sola no inventa pedidos, viajes ni existencias.
 
-Cada GET lee todo el documento y cada guardado sustituye todo el documento. No hay tablas individuales de productos, usuarios o movimientos, claves foráneas entre entidades ni índices SQL por SKU o fecha. Postgres comprueba la forma general de la fila; las reglas internas dependen del código de aplicación.
+Cada escritura sustituye el JSON completo y aumenta la revisión en uno. No existen tablas independientes de pedidos, líneas, palets o movimientos. Las relaciones internas se comprueban en TypeScript; Postgres protege la fila y el control de revisión. Este diseño simplifica el arranque, pero exige medir el crecimiento del histórico y la contención cuando aumente el número de dispositivos.
+
+### Cuentas separadas
+
+`public.warehouse_users` guarda `id`, `username` único en minúsculas, `name`, `role`, `password_hash`, `active`, `session_version`, `created_at` y `updated_at`. El rol está limitado a administrador, encargado o pantalla. La contraseña nunca se devuelve en las APIs de consulta.
+
+La cuenta principal es virtual: procede de `WAREHOUSE_ADMIN_USER` y `WAREHOUSE_ADMIN_PASSWORD`, tiene ID `bootstrap` y rol administrador. Permite gestionar las primeras cuentas sin depender de que ya exista otro administrador.
 
 ### Conexión y protección
 
-La conexión se obtiene de `DATABASE_URL ?? POSTGRES_URL`: si ambas existen, tiene prioridad `DATABASE_URL`. El cliente configura `prepare: false`, una conexión por instancia, 15 segundos para conectar y ejecutar sentencias y 20 segundos de inactividad. Desactivar sentencias preparadas es compatible con el pool de transacciones documentado por [Supabase](https://supabase.com/docs/guides/database/connecting-to-postgres).
+La conexión usa `DATABASE_URL`, o `POSTGRES_URL` si la primera no está definida. La inicialización crea las tablas si faltan, activa RLS y revoca permisos de `anon`, `authenticated` y `PUBLIC`. Se serializa con bloqueos de transacción distintos para almacén y usuarios. El servidor conecta con su credencial privada; el navegador no recibe esa conexión.
 
-La primera operación de cada instancia inicializa la tabla dentro de una transacción. Adquiere `pg_advisory_xact_lock(75017329)`, crea la tabla si falta, activa RLS y revoca permisos a `anon`, `authenticated` y `PUBLIC`. Lecturas y escrituras esperan a que esto termine. Si falla, la API no continúa; la siguiente petición puede reintentar la inicialización.
+Los roles de negocio se comprueban en la API, no mediante políticas de Supabase Auth. RLS cierra el acceso público directo a las tablas; no convierte la cuenta SQL del servidor en un usuario encargado o pantalla. La inicialización necesita permisos DDL apropiados y debe ensayarse en una base de pruebas antes del despliegue.
 
-El servidor conecta como propietario y conserva acceso. No se usa `FORCE ROW LEVEL SECURITY` ni hay políticas de usuario final. Por tanto, RLS y la retirada de permisos cierran el Data API público, pero **no distinguen oficina y operarios**. Esa autorización tendrá que realizarla el servidor. La arquitectura no envía las credenciales de Postgres al navegador. Véase también [db/security.md](../db/security.md).
+## 5. Diccionario de inventario
 
-## 4 Diccionario exacto de los datos actuales
-
-### Referencias de producto
-
-| Campo de Product | Tipo | Significado y regla |
+| Colección | Campos | Qué representa |
 | --- | --- | --- |
-| `id` | texto | UUID generado en el servidor al crear |
-| `sku` | texto | Código único; espacios externos recortados, mayúsculas e inmutable después del alta |
-| `name` | texto | Descripción de la referencia; incluir medidas cuando permitan identificarla |
-| `family` | texto | Familia libre; el formulario parte de Cantoneras y no existe catálogo controlado de familias |
-| `minimum` | número entero | Mínimo global de esa referencia en palets; de 0 a 1.000.000 |
+| `products` | `id`, `sku`, `name`, `family`, `minimum` | Catálogo. SKU único en mayúsculas e inmutable; mínimo global de palets por referencia |
+| `locations` | `id`, `code`, `area`, `zone`, `capacity`, `sku`, `qty` | Bloque físico de suelo y saldo actual. Una referencia por bloque; al quedar a cero se vacía el SKU |
+| `movements` | `id`, `date`, `kind`, `sku`, `qty`, `location`, `destination`, `operator`, `actorId?`, `document`, `notes`, `stacked`, `workOrderId?` | Histórico de cambios de palets; los de producción se enlazan con un viaje |
+| `tasks` | `id`, `title`, `zone`, `owner`, `due`, `done` | Plan 5S heredado de puesta en marcha; no es la cola de trabajo que se publica en la pantalla |
+| `closures` | `id`, `day`, `date`, `operator`, `actorId?`, `checks`, `notes` | Un cierre global por día de Madrid con las cinco comprobaciones completas |
 
-El producto no contiene un campo de existencias. Dar de alta una referencia no añade palets.
+Las áreas permitidas son `carton` y `montaje`. Esta última incluye montaje y almacenaje de cajas. El muelle identifica trabajo logístico, no un bloque de stock en la aplicación. Cerámica, oficinas y otros espacios quedan fuera de estas ubicaciones.
 
-### Ubicaciones y existencias
+Los saldos mostrados se calculan sumando `locations.qty`, no reproduciendo el histórico. `minimum` admite cero; capacidades y cantidades de movimiento son enteros positivos, con límite de 1.000.000. No hay palets parciales, unidades interiores ni lotes. Los SKU de planchas y cajas deben distinguirse, pero la familia es texto libre: la app no deduce el material a partir del nombre.
 
-| Campo de Location | Tipo | Significado y regla |
-| --- | --- | --- |
-| `id` | texto | UUID generado al crear |
-| `code` | texto | Código único en mayúsculas e inmutable, por ejemplo CAR-A-01 |
-| `area` | texto opcional | `carton` o `montaje`; obligatorio en altas y ediciones actuales; puede faltar en datos antiguos |
-| `zone` | texto | Pasillo o sector dentro del área, por ejemplo Pasillo A |
-| `capacity` | número entero | Capacidad total validada en palets, de 1 a 1.000.000 |
-| `sku` | texto | Referencia que ocupa el bloque; vacío si no contiene stock |
-| `qty` | número entero | Palets actuales del bloque; se modifica mediante movimientos |
+Las entradas suman stock; las salidas restan; los traslados restan en origen y suman en destino. Se exige capacidad suficiente y no mezclar SKU. Una salida requiere albarán y doble comprobación; entrada, traslado y producción exigen etiquetado confirmado. Si se declara apilado, se exige revisión adicional. Esas confirmaciones se validan al guardar; no todas se conservan como campos independientes del movimiento.
 
-`area` clasifica las dos zonas del plano; `zone` es un texto libre, no una tercera zona controlada. Un bloque solo admite una referencia a la vez. Al quedar a cero, el servidor vacía su SKU. Una ubicación antigua sin área admite salida, pero no recibe entradas ni traslados hasta asignarla.
+El servidor toma el nombre y `actorId` del usuario autenticado en nuevos movimientos y cierres. Ignora el nombre de responsable enviado por el navegador para atribuirlos. Los registros antiguos pueden conservar nombres libres y no tener `actorId`; no se convierten retrospectivamente en identidades verificadas.
 
-### Movimientos
+## 6. Órdenes, horarios y prioridades
 
-| Campo de Movement | Tipo | Significado |
-| --- | --- | --- |
-| `id` | texto | UUID de este movimiento, distinto en cada ejecución aceptada |
-| `date` | texto ISO UTC | Fecha y hora generadas en el servidor al registrar |
-| `kind` | texto controlado | `entrada`, `salida` o `traslado` |
-| `sku` | texto | Referencia existente en el catálogo |
-| `qty` | número entero | Palets positivos, hasta 1.000.000 |
-| `location` | texto | Bloque receptor en entrada; bloque de origen en salida o traslado |
-| `destination` | texto | Bloque de destino en traslado; vacío en los demás casos |
-| `operator` | texto | Nombre escrito en el formulario; no es una identidad autenticada |
-| `document` | texto | Albarán obligatorio en salida; opcional en entrada y traslado |
-| `notes` | texto | Observaciones opcionales de hasta 1.000 caracteres |
-| `stacked` | booleano | Indica apilado declarado en entrada o traslado |
+### Datos de una orden
 
-Las confirmaciones `labelled`, `verified` y `safe` llegan en la acción y se validan, pero **no se conservan en Movement**. Tampoco se guarda la persona que hizo una segunda revisión, fecha física anterior al registro, foto, lote o identificador individual del palet.
+| Campo | Uso |
+| --- | --- |
+| `id`, `kind`, `title` | Identidad, tipo y descripción del trabajo |
+| `reference` | Número de pedido o referencia de trabajo; texto libre |
+| `truck` | Matrícula o identificación del camión |
+| `assignedTo` | Equipo o persona que ejecuta; texto libre, distinto del autor que registra |
+| `instructions` | Instrucciones visibles para los operarios |
+| `scheduledDate`, `scheduledTime` | Día real de calendario y hora prevista opcional; se interpretan en el contexto del almacén en Madrid |
+| `priority` | `normal` o `urgente` |
+| `status` | `pendiente`, `en_curso`, `pausada`, `completada` o `cancelada` |
+| `repeatEveryDays` | De 0 a 365; solo mantenimiento y limpieza. Cero significa sin repetición |
+| `previousOrderId`, `nextOrderId` | Enlaces entre tareas recurrentes |
+| `createdAt`, `updatedAt`, `completedAt` | Tiempos del servidor, en ISO UTC; finalización nula mientras no esté completada |
+| `createdBy`, `updatedBy`, `events` | Autoría e historial de creación, edición y cambios de estado |
+| `production` | Especificación de consumo/producción de un viaje, opcional hasta completarlo |
 
-### Tareas 5S
+Cada evento guarda `id`, `kind`, `date`, `actorId`, `actorName` y `status`. El historial conserva quién y cuándo, pero todavía no guarda un diff completo de los valores anteriores de cada edición. La asignación por nombre no es una relación con una cuenta ni concede permisos.
 
-| Campo de Task | Tipo | Significado |
-| --- | --- | --- |
-| `id` | texto | UUID; las tareas iniciales usan `5s-1` a `5s-9` |
-| `title` | texto | Trabajo a realizar |
-| `zone` | texto | Zona o ámbito de la tarea, libre y sin relación obligatoria con Location |
-| `owner` | texto | Responsable asignado por nombre libre |
-| `due` | texto | Fecha objetivo `AAAA-MM-DD` o cadena vacía |
-| `done` | booleano | Completada o pendiente |
+Los tipos de trabajo son `viaje`, `pedido`, `carga`, `descarga`, `mantenimiento` y `limpieza`. Una orden nace pendiente. Se puede iniciar, pausar, reanudar, completar o cancelar. No se reabre ni se edita un trabajo cerrado. Si se necesita rehacerlo, se crea otro.
 
-La tarea no registra quién la completó, a qué hora ni un historial de cambios. `due` es una fecha objetivo, no una fecha de ejecución. La validación actual comprueba el formato, pero admite fechas de calendario imposibles.
+### Prioridad
 
-### Cierres de turno
+La ordenación compartida presenta primero trabajos abiertos, después prioriza los que están en curso, las urgencias indicadas por el encargado y los viajes de producción; a continuación compara día y hora. Una hora vacía se coloca al final del día. El trabajo destacado de la pantalla elige primero los que están en marcha; si no hay ninguno, el siguiente pendiente de hoy o días anteriores. Solo si no hay pendientes de esos días propone trabajo futuro. Una orden pausada no se anuncia como siguiente trabajo.
 
-| Campo de Closure | Tipo | Significado |
-| --- | --- | --- |
-| `id` | texto | UUID generado en el servidor |
-| `day` | texto | Día civil del almacén en Europe/Madrid |
-| `date` | texto ISO UTC | Fecha y hora del registro |
-| `operator` | texto | Nombre escrito por quien declara revisar |
-| `checks` | array booleano | Exactamente cinco valores `true` |
-| `notes` | texto | Observaciones opcionales, hasta 1.000 caracteres |
+Las órdenes futuras siguen visibles con su fecha. Una hora prevista ayuda a organizar y señalar retrasos; no inicia una máquina ni cambia automáticamente el estado. El encargado conserva el control y puede marcar una urgencia cuando un trabajo deba adelantar a un viaje.
 
-Hay un cierre por día para todo el almacén, no uno por persona ni por perfil. No se puede firmar con comprobaciones pendientes, reabrir ni registrar un segundo turno. Las cinco comprobaciones son maquinaria estacionada, baterías/carga, pasillos, consumibles y residuos. El nombre guardado no constituye una firma electrónica certificada.
+### Repetición y almuerzo
 
-### Relaciones entre entidades
+Al completar mantenimiento o limpieza con repetición, se crea una única siguiente orden pendiente. Su fecha es el día de finalización en Madrid más el número de días elegido; conserva la hora programada. No depende de un cron ni genera tareas acumuladas por cada día transcurrido. Repetir la misma finalización no genera otra recurrencia.
 
-```text
-products.sku ──► locations.sku
-             └► movements.sku
-locations.code ──► movements.location y movements.destination
+`shift` contiene inicio/fin del turno, inicio/fin de almuerzo y aviso general. El turno debe empezar y terminar el mismo día, con inicio anterior al fin. El almuerzo requiere ambas horas, dentro del turno, o ambas vacías. Se repite diariamente hasta que el encargado lo cambia. No hay calendarios de festivos, turnos nocturnos ni horarios distintos por operario.
+
+## 7. Cómo un viaje actualiza el stock
+
+La especificación de producción contiene:
+
+```json
+{
+  "inputSku": "PLANCHA-REF",
+  "inputLocation": "CAR-A-01",
+  "inputPallets": 2,
+  "outputSku": "CAJA-REF",
+  "outputLocation": "CAJ-A-01",
+  "outputPallets": 3
+}
 ```
 
-Son relaciones por texto mantenidas por la aplicación. SKU y código de ubicación se conservan para que el histórico siga apuntando a ellos. `operator` y `owner` no enlazan con una tabla de personas. Los nombres de zonas de tareas tampoco asignan permisos.
+Este ejemplo transforma dos palets de planchas en tres palets de cajas. **No se presupone una relación 1:1**. El encargado confirma cantidades reales, referencias y bloques al completar el viaje. No se calcula rendimiento ni merma a partir de unidades interiores.
 
-Los textos ordinarios tienen un límite de 180 caracteres y se recortan. Las reglas de campos y relaciones se aplican a acciones nuevas; el importador actual no ofrece una validación equivalente.
+1. Crear o iniciar un viaje no modifica existencias ni reserva stock.
+2. Al completar, se exige una especificación válida. Las referencias y los bloques de origen/destino deben ser distintos y existir.
+3. El servidor comprueba planchas suficientes, destino compatible, área asignada y capacidad de recepción. Exige etiquetado y, si corresponde, revisión de apilado.
+4. Sobre una copia del estado, resta las planchas, suma las cajas y crea dos movimientos: `consumo` y `produccion`, ambos con `workOrderId`.
+5. Marca el viaje completado, registra el evento del autor y guarda todo con una única escritura condicionada por revisión.
 
-## 5 Qué ocurre al leer y guardar
+Si falla cualquiera de esas reglas, no se guarda ninguna parte del cambio. Si el viaje ya estaba completado, repetir esa finalización no vuelve a consumir ni producir palets. Esto evita duplicados por repetir el cierre de la misma orden.
 
-### Lectura
+Completar un pedido, una carga o una descarga **solo cierra el trabajo**. La entrada/salida de palets se registra por separado en Inventario. El diálogo de cierre de camiones lo explica. No existen todavía líneas de pedido, reservas, preparación parcial, conciliación con albaranes ni un enlace automático entre camión y movimientos.
 
-Al abrir la app, React pide `GET /api/warehouse`. El servidor comprueba la cookie y devuelve `{ revision, state }`. La pantalla conserva una copia en memoria y calcula tablas e indicadores. Las respuestas no se cachean. No hay modo sin conexión ni cola de operaciones persistente en el navegador.
+## 8. Lectura, guardado y sincronización
 
-### Guardado
+`GET /api/warehouse` devuelve `{ revision, state }`. El encargado y el administrador consultan al entrar, cada 15 segundos, al recuperar el foco y tras guardar. Las respuestas con una revisión inferior a la ya recibida se ignoran, para que una lectura atrasada no sustituya un guardado más reciente.
 
-1. El formulario envía `POST /api/warehouse` con `{ revision, action }`.
-2. El servidor comprueba la sesión y el origen. Valida JSON, revisión entera no negativa y acción de tipo objeto; limita el cuerpo a 12.000 caracteres.
-3. Lee la revisión y el estado actual. Si la revisión enviada está desactualizada, responde 409.
-4. `applyAction` clona el estado con `structuredClone` y aplica validaciones y cambios sobre esa copia.
-5. Una única sentencia SQL guarda el JSON completo y aumenta la revisión, solo si coincide la revisión esperada. Stock e histórico se guardan juntos.
-6. La API devuelve el estado completo y la nueva revisión. El navegador actualiza la pantalla y muestra la confirmación.
+Cada escritura envía `{ revision, action }`. El servidor verifica sesión, rol y origen, admite un cuerpo de hasta 12.000 caracteres y comprueba la revisión. `applyAction` clona el estado; la escritura SQL usa `INSERT ... ON CONFLICT ... DO UPDATE` con condición sobre la revisión esperada. Un conflicto devuelve 409 y el frontend refresca conservando el formulario para revisarlo. Incluso cambiar un horario compite por la misma revisión global que un movimiento.
 
-La escritura usa un `INSERT ... ON CONFLICT ... DO UPDATE` condicionado por `warehouse.revision = revisiónEsperada`. No hay una transacción SQL que englobe toda la lectura y el cálculo; la garantía frente a escritores concurrentes está en esa escritura condicional atómica.
+No se reintentan automáticamente las escrituras. Aún falta una clave de idempotencia general para altas y movimientos manuales: si el servidor guarda pero se pierde la respuesta, repetir después con una revisión nueva puede duplicar la intención original. El cierre de viajes sí se protege mediante su orden y estado. Antes de reintentar una entrada, salida o nueva orden tras un error de conexión, hay que revisar si ya aparece registrada. Para operación intensiva, conviene resolver esta limitación antes de cargar datos reales.
 
-Ejemplo: oficina y un operario leen revisión 12. Oficina guarda una entrada y crea revisión 13. El operario intenta guardar sobre 12: recibe 409, se recargan datos y se conserva su formulario para revisarlo. No se pisan silenciosamente las cantidades. Incluso editar una tarea compite por esa misma revisión global.
+La pantalla usa `GET /api/board` cada 10 segundos y rota listas cada 15 segundos. Recibe órdenes sin el array de eventos, horarios, revisión y hora del servidor; mantiene su reloj en Madrid. Producción/pedidos se pagina de dos en dos; muelle y puesta a punto, de uno en uno. Los avisos e instrucciones largos rotan en fragmentos. No se silencian trabajos sobrantes por superar el número de tarjetas.
 
-Si la escritura se completa pero se pierde la respuesta, un reintento posterior con una revisión actualizada puede registrar otra vez la misma operación. Reenviar literalmente la revisión antigua devuelve 409; ese control no identifica la intención original. Falta un `operationId` estable para que reintentar produzca un único movimiento.
+Si una lectura falla o pasan 30 segundos sin una actualización correcta, aparece un aviso visible de datos sin actualizar. La pantalla conserva la última información con esa advertencia; no permite registrar trabajo sin conexión. Una sesión caducada conduce al login.
 
-### Reglas por tipo de movimiento
+## 9. API y control de acceso
 
-| Movimiento | Efecto en existencias | Comprobaciones específicas |
+| Método y ruta | Permiso | Contrato |
 | --- | --- | --- |
-| Entrada | Suma palets al bloque receptor | Catálogo existente, área válida, capacidad, bloque vacío o mismo SKU, responsable y etiquetado |
-| Salida | Resta del origen y vacía su SKU si llega a cero | SKU y cantidad disponibles, responsable, albarán y doble revisión declarada |
-| Traslado | Resta del origen y suma al destino en el mismo guardado | Bloques distintos, cantidad disponible, destino compatible, área, capacidad, responsable y etiquetado |
+| `POST /api/session` | Público | `user` o `username` y `password`; devuelve identidad pública y cookie |
+| `GET /api/session` | Cualquier cuenta activa | `{ user }` o 401 |
+| `DELETE /api/session` | Cierre de sesión | Borra la cookie de ese navegador |
+| `GET /api/warehouse` | Administrador/encargado | Estado completo y revisión |
+| `POST /api/warehouse` | Administrador/encargado | `{ revision, action }`; devuelve estado y revisión nuevos |
+| `GET /api/board` | Tres roles | `{ revision, workOrders, shift, serverTime }` |
+| `GET /api/users` | Administrador | Lista de cuentas públicas con `active` y `bootstrap` |
+| `POST /api/users` | Administrador | `type: create`, `update` o `delete`; alta, cambio o desactivación |
+| `POST /api/reference-photo` | Administrador/encargado | Extrae sugerencias de una etiqueta; no guarda stock |
 
-Entrada y traslado con apilado declarado exigen además revisión del palet inferior. Las reglas impiden stock negativo y superar capacidad en operaciones normales. La capacidad y la autorización física del apilado proceden del equipo del almacén, no se calculan a partir del dibujo.
+Las acciones del almacén son `product`, `location`, `movement`, `task`, `closure`, `workOrder`, `workOrderStatus` y `shift`. Las órdenes y horarios usan campos planos. `workOrder` incluye `id` solo al editar; `workOrderStatus` incluye ID y estado, además de producción/comprobaciones al terminar un viaje.
 
-Hoy no hay recuento, ajuste, merma, reserva ni corrección vinculada a un movimiento erróneo. La ausencia de botón de borrado preserva el historial desde la interfaz, pero no convierte la base o las copias en un registro inmutable frente a administradores.
+```json
+{
+  "revision": 12,
+  "action": {
+    "type": "workOrderStatus",
+    "id": "ID_DEL_VIAJE",
+    "status": "completada",
+    "labelled": true
+  }
+}
+```
 
-## 6 Contrato de las rutas HTTP
+El ejemplo supone producción ya planificada en la orden; se puede enviar `production` para confirmar valores diferentes. El autor no se acepta desde el formulario: se resuelve desde la sesión.
 
-| Método y ruta | Entrada | Resultado |
+Respuestas: 400 para datos o reglas inválidas; 401 para sesión ausente/caducada; 403 para permisos u origen no permitido; 409 para conflicto de revisión o cuenta duplicada; 429 para exceso de intentos de login; 503 para configuración o servicio no disponible. La lectura de fotografías tiene además errores específicos de tamaño/formato/extracción.
+
+### Sesiones y contraseñas
+
+La cookie `burriana_sesion` es HttpOnly, SameSite=Lax y Secure en producción. Dura ocho horas desde el acceso. Los tokens nuevos contienen identidad, versión de sesión y caducidad; el rol se obtiene del registro actual, no de un campo que envíe el cliente. Los tokens antiguos de la cuenta principal siguen siendo válidos durante la actualización.
+
+Las contraseñas de cuentas nuevas se almacenan con scrypt y sal aleatoria. Se exigen entre 12 y 256 caracteres. La credencial principal conserva la política existente y se configura en el servidor. Cambiarla invalida las sesiones; cambiar rol/contraseña de una cuenta o desactivarla incrementa su versión y revoca sus tokens anteriores. El cierre normal borra la cookie del navegador, sin una lista de revocación individual por dispositivo.
+
+La API comprueba estado activo en cada petición y origen en escrituras. El limitador de intentos de login vive en memoria de cada instancia; no es un límite distribuido entre todas las funciones. Para acceso público sostenido queda pendiente valorar una protección compartida. No hay recuperación de contraseña por correo ni autenticación multifactor integrada.
+
+## 10. Qué muestra cada dato en los dashboards
+
+| Indicador | Fuente y cálculo |
+| --- | --- |
+| Palets en stock | Suma de `locations.qty` |
+| Referencias bajo mínimo | Suma de bloques por SKU estrictamente inferior a `products.minimum` |
+| Órdenes pendientes | Todas las abiertas: pendientes, en curso y pausadas, también futuras |
+| Camiones previstos | Cargas/descargas abiertas de hoy o días anteriores |
+| Completadas hoy | Órdenes con `completedAt` cuyo día en Madrid es hoy |
+| Siguiente trabajo | Orden abierta elegida por prioridad y fecha; el encargado decide empezar |
+| Mantenimiento y limpieza | Órdenes abiertas de ambos tipos, con la siguiente fecha prevista |
+| Historial de producción | Movimientos consumo/producción enlazados a la orden |
+| Ocupación de bloque | `qty / capacity`; el plano no calcula capacidad ni posición real |
+
+El dashboard global es operativo: muestra stock, carga de trabajo y actividad terminada. No calcula todavía productividad por máquina, OEE, tiempos efectivos descontando pausas, costes, objetivos ni rendimiento de conversión. Los datos actuales permiten ampliar algunos indicadores, pero esos KPI necesitan definición y validación con el responsable.
+
+El plan 5S heredado sigue accesible en Inventario para puesta en marcha. Para que mantenimiento y limpieza aparezcan en la pantalla hay que crearlos como órdenes en Organización del turno. El cierre diario sigue siendo una comprobación global; no completa automáticamente las órdenes abiertas.
+
+## 11. Preparar el inventario real de la nave
+
+Antes de introducir palets, el responsable debe reunir la siguiente información:
+
+| Datos | Campos necesarios | Comprobación física |
 | --- | --- | --- |
-| POST `/api/session` | JSON con `user` y `password` | `{ ok: true }` y cookie de sesión |
-| DELETE `/api/session` | Sin cuerpo necesario | Borrado de la cookie del navegador |
-| GET `/api/warehouse` | Cookie válida | `{ revision, state }` completo |
-| POST `/api/warehouse` | Cookie y `{ revision, action }` | Estado y revisión actualizados |
-| POST `/api/reference-photo` | Cookie y multipart con archivo `foto` | Campos de referencia propuestos; no guarda stock |
+| Referencias | SKU, descripción y medidas, familia, mínimo en palets; distinguir planchas y cajas | Etiquetas y nomenclatura únicas |
+| Bloques | Código, área cartón/montaje, pasillo, capacidad total validada | Señalización, límites y espacio realmente disponible |
+| Recuento inicial | SKU, bloque y palets completos existentes | Un único SKU por bloque, cantidad dentro de capacidad |
+| Producción | SKU de origen/destino, bloques, consumo y producción de cada viaje | Confirmar cantidades reales al terminar |
+| Turno | Horas, almuerzo y avisos | Acuerdo del encargado para el primer día |
+| Accesos | Nombre, usuario y rol por persona; cuenta de pantalla | Una cuenta de lectura exclusiva en el dispositivo visible |
 
-Acciones admitidas en `POST /api/warehouse`:
+Procedimiento de arranque:
 
-| `action.type` | Campos de la acción |
-| --- | --- |
-| `product` | `id` para editar; `sku`, `name`, `family`, `minimum` |
-| `location` | `id` para editar; `code`, `area`, `zone`, `capacity`; cantidad y SKU se conservan desde el estado |
-| `movement` | `kind`, `sku`, `qty`, `location`, `destination`, `operator`, `document`, `notes`, `labelled`, `verified`, `stacked`, `safe` según el tipo |
-| `task` | `id` para editar; `title`, `zone`, `owner`, `due`, `done` |
-| `closure` | `operator`, `checks`, `notes`; el día y la fecha los calcula el servidor |
+1. Usar el entorno definitivo solo después de verificar permisos, copias y recuperación en una base de pruebas. No importar la demostración local.
+2. Dar de alta el catálogo de planchas y cajas en Inventario. Dar de alta los bloques con sus áreas y capacidades reales.
+3. Hacer un recuento físico en un momento acordado, evitando movimientos sin registrar durante el corte.
+4. Registrar una entrada inicial por SKU y bloque, con documento identificable de inventario inicial y las comprobaciones exigidas.
+5. Conciliar el total de cada referencia y la ocupación de cada bloque con el recuento. Resolver discrepancias antes de comenzar a operar.
+6. Configurar turno y almuerzo, crear una orden de producción y probar el ciclo completo con el equipo en un entorno de pruebas.
+7. Iniciar el primer turno real y revisar a diario stock, órdenes pendientes y movimientos sin conciliar.
 
-Una edición de tarea con ID desconocido se rechaza. Producto y ubicación usan otra lógica: un ID desconocido puede acabar creando un registro nuevo; hay que corregir esa diferencia.
+No hay importación de Excel/CSV desde la interfaz ni ajuste de inventario dedicado. Los CSV exportados son informes. El importador JSON restaura un estado completo, no debe tratarse como un formulario para sumar existencias a una base operativa.
 
-| Estado HTTP | Interpretación |
-| --- | --- |
-| 400 | Petición o regla de negocio inválida |
-| 401 | Sesión ausente/caducada o credenciales incorrectas en login |
-| 403 | Origen de una mutación rechazado |
-| 409 | Otro cambio avanzó la revisión |
-| 413 / 415 / 422 | Foto demasiado grande, formato no permitido o etiqueta ilegible |
-| 429 | Límite de intentos de login en una instancia |
-| 503 | Acceso no configurado o fallo de base/proveedor, según ruta |
+## 12. Copias, restauración y fotografías
 
-Las rutas no devuelven los detalles sensibles de errores de Postgres o del proveedor de IA. El frontend todavía necesita distinguir mejor sesión caducada, respuesta no JSON y pérdida de conexión.
+«Descargar copia de datos» exporta `schemaVersion: 2`, fecha de exportación, revisión y todas las colecciones, incluidas órdenes y horarios. Sale del estado de la pestaña; hay que comprobar que esté actualizado. **No incluye cuentas ni hashes** de `warehouse_users`: el plan de recuperación debe respaldar ambas tablas y la configuración del servidor por separado.
 
-## 7 Acceso y sesiones actuales
+El importador acepta el exportado de la app o una respuesta `{ revision, state }`. Para validar un archivo sin conexión a Postgres:
 
-Existe una única cuenta definida mediante `WAREHOUSE_ADMIN_USER` y `WAREHOUSE_ADMIN_PASSWORD`. Sin credenciales utilizables el acceso privado se cierra con 503. La ruta de login permanece accesible.
+```sh
+node --experimental-strip-types scripts/import-state.mjs copia.json --check
+```
 
-Tras entrar, el navegador recibe `burriana_sesion`. Es una cookie HttpOnly, SameSite=Lax y Secure en producción. El token contiene usuario y vencimiento y se firma con HMAC SHA-256, con una clave derivada de la contraseña. Dura ocho horas desde el acceso. Cambiar las credenciales invalida las sesiones; cerrar sesión borra la cookie, sin una lista central de sesiones revocadas.
+Comprueba estructura, IDs únicos, SKU/códigos normalizados, tipos, cantidades, referencias, áreas, fechas, cierre único, eventos, recurrencia y que un viaje terminado corresponda a sus dos movimientos. Conserva órdenes y horarios. En copias antiguas sin esos campos aplica valores por defecto. No reconstruye todos los saldos a partir de los movimientos; esa conciliación sigue siendo una revisión adicional.
 
-El texto de login habla de 07:00 a 15:00, pero ese horario no limita la sesión: entrar a las 11:00 permite ocho horas desde ese momento. El contador de intentos permite bloquear después de ocho fallos por IP, pero vive en memoria y no se comparte entre funciones. No se ha acreditado una regla distribuida adicional en la plataforma.
-
-El proxy y cada API aplican autorización. Las mutaciones comprueban `Origin` frente al host recibido y rechazan `sec-fetch-site: cross-site`. Eso protege el flujo de navegador, pero no añade permisos por persona. Cualquiera con la cuenta actual puede ejecutar todas las acciones autorizadas por esa sesión.
-
-## 8 Cómo se muestran los mismos datos en las pantallas
-
-| Pantalla | Fuente y cálculo actual |
-| --- | --- |
-| Resumen | Total = suma de `locations.qty`; ocupadas = bloques con cantidad mayor que cero; referencias = tamaño del catálogo; cierre = coincidencia con el día de Madrid |
-| Inventario | Catálogo y suma de cantidades de las ubicaciones de cada SKU; alerta si stock es estrictamente menor que `minimum` |
-| Ubicaciones | Bloques agrupados por `area` y `zone`, ordenados por código; ocupación = `qty / capacity` |
-| Plano | Suma de palets y número de bloques de cartón y montaje/cajas; las ubicaciones sin área se avisan por separado |
-| Movimientos | Array histórico; fecha UTC presentada en Europe/Madrid; búsqueda y filtro en el navegador |
-| Plan 5S | Tareas, asignación por texto, fecha objetivo y progreso de completadas |
-| Cierre de turno | Cierre global del día, cinco comprobaciones e historial de cierres |
-| Protocolo operativo | Texto fijo del frontend; no se configura ni versiona desde la base |
-
-**El stock mostrado se suma desde las ubicaciones, no se reconstruye reproduciendo movimientos.** Ambos se mantienen juntos en operaciones normales, pero una importación incoherente puede romper esa correspondencia. El plano de diciembre de 2022 es una referencia de distribución: sus símbolos no son existencias actuales ni capacidades medidas. No hay coordenadas reales para situar cada bloque registrado a escala.
-
-El navegador refresca al entrar, al pulsar Actualizar, tras guardar, ante conflicto o al ejecutar la herramienta opcional `read_warehouse_stock` si el entorno la admite. El temporizador de 30 segundos solo actualiza el día; no consulta existencias. No hay sincronización automática entre puestos. Además, una respuesta antigua que llegue tarde puede sustituir una revisión más nueva en pantalla.
-
-Para oficina y operarios hace falta una política común de actualización: refresco al recuperar foco y un intervalo o notificación de cambios, rechazo de revisiones inferiores y fecha visible de última actualización. La consulta y las reglas deben compartir la misma fuente de stock. Si una cuenta tiene acceso limitado por zona, sus totales deben indicar ese ámbito.
-
-Hay también diferencias que conviene corregir: el inventario exporta todo el catálogo aunque haya filtros, mientras el historial exporta solo los movimientos filtrados. “El plan de esta semana” muestra las primeras cuatro tareas sin filtrar fecha. Las tarjetas “Operario 01/02/03” y el nombre “Oficina” son textos fijos, no información del usuario conectado.
-
-## 9 Fotografías y copias de datos
-
-### Lectura de etiquetas
-
-El formulario de nueva referencia puede enviar una fotografía a `/api/reference-photo`. El servidor admite JPEG, PNG, WebP y HEIC y un máximo de 6 MiB. Usa AI SDK con el identificador de modelo `anthropic/claude-sonnet-5` configurado en el código para obtener `legible`, `sku`, `name`, `family` y `note`.
-
-La extracción propone campos; la persona debe comprobarlos y guardar después. Este endpoint no añade productos ni stock y no almacena la imagen en la base de la app. La fotografía se transmite al proveedor de IA. La compatibilidad real del modelo, credenciales, coste y formatos requiere ensayo; no se ha ejecutado OCR con imágenes reales en esta revisión.
-
-El límite de la app es mayor que los 4,5 MB documentados para cuerpos de petición/respuesta de [Vercel Functions](https://vercel.com/docs/functions/limitations). Una imagen grande puede rechazarse antes de entrar en la función. También falta cancelar o ignorar una lectura pendiente al cerrar el formulario: su respuesta podría rellenar otra referencia abierta después. Hay que comprimir/redimensionar, tratar errores no JSON y confirmar los campos extraídos.
-
-### Exportación y restauración
-
-El CSV de inventario contiene SKU, descripción, familia, palets, mínimo y ubicaciones. El CSV de movimientos contiene las filas filtradas del historial. Son informes; la app no tiene importación de CSV o Excel.
-
-“Descargar copia de datos” genera JSON con `exportedAt`, `revision` y las cinco colecciones. Sale de la copia que tiene el navegador, por lo que se debe actualizar antes. No incluye credenciales, usuarios, esquema SQL ni una versión de formato.
-
-El importador administrativo acepta ese JSON o el estado anidado de una respuesta de API. Reemplaza las cinco colecciones, no las fusiona. Ignora la revisión del archivo y escribe con la revisión vigente de la base más uno. La protección sin `--force` omite tareas al decidir si hay datos: puede reemplazar tareas personalizadas si el resto está vacío.
-
-Su validación solo comprueba arrays y duplicados exactos de SKU/código. Faltan tipos, IDs únicos, normalización, referencias existentes, cantidades no negativas, capacidades, áreas, fechas, cierre único y coherencia de saldos. Tampoco tiene simulación ni copia previa. **No debe usarse como importador masivo ordinario del inventario real hasta completar esas garantías.**
-
-El comando existente, para una copia ya validada y con el entorno de destino comprobado, es:
+La restauración administrativa, una vez verificado el entorno de destino y guardada una copia previa, usa:
 
 ```sh
 node --experimental-strip-types --env-file=.env.local scripts/import-state.mjs copia.json
 ```
 
-La opción `--force` sustituye el estado completo incluso con datos. No se ha ejecutado este importador durante la revisión. Hay que ensayar restauración en una base aislada y definir responsable, frecuencia, retención y acceso a copias. Los backups del proveedor y su recuperación dependen de la configuración contratada, que no se ha verificado aquí.
+Se niega a reemplazar existencias, histórico, tareas personalizadas, órdenes o horarios cambiados sin `--force`. Esa opción sustituye todo el estado del almacén; no lo fusiona y no restaura cuentas. El script escribe con la revisión actual de la base, no con la revisión del archivo. No realiza por sí mismo una copia previa. No se ha ejecutado una restauración contra producción en este trabajo.
 
-## 10 Perfiles de oficina y operarios que faltan por implementar
+La lectura de etiquetas por fotografía sigue siendo opcional. Propone datos del catálogo y exige revisión humana; no registra palets. Antes de depender de ella hay que ensayar proveedor/modelo, formatos y tamaños aceptados por el despliegue. El flujo actual no ha sido validado con fotografías reales en esta revisión y necesita resolver compresión/tamaño y respuestas tardías al cerrar el formulario.
 
-### Permisos propuestos
+## 13. Desarrollo y despliegue
 
-El alcance confirmado es **oficina y operarios**. Actualmente ambos usarían la misma cuenta con todos los permisos. La siguiente matriz es una propuesta de implementación, no una capacidad ya disponible.
+Requisitos del proyecto: Node 22.13 o superior y dependencias instaladas con `npm ci`. Variables privadas: `WAREHOUSE_ADMIN_USER`, `WAREHOUSE_ADMIN_PASSWORD` y `DATABASE_URL` o `POSTGRES_URL`. No deben subirse al repositorio.
 
-| Operación | Oficina | Operarios |
-| --- | --- | --- |
-| Consultar referencias, existencias, bloques y protocolo | Sí | Sí |
-| Registrar entrada, salida y traslado | Sí | Sí, dentro del flujo autorizado |
-| Crear o editar referencias y capacidades | Sí | No |
-| Cargar inventario inicial de forma masiva | Sí, con validación y simulación | No |
-| Hacer un recuento físico | Sí | Sí, como declaración pendiente de aprobación |
-| Aprobar ajustes o correcciones | Sí, con motivo e historial | No; comunicar discrepancia |
-| Crear, asignar y reprogramar tareas | Sí | No |
-| Completar tareas | Sí | Las asignadas o autorizadas |
-| Firmar cierre global del día | Sí | Solo personas designadas para revisar |
-| Exportar histórico o copia completa | Sí | No por defecto |
-| Gestionar accesos | Personas autorizadas de oficina | No |
-
-Las facultades de firmar cierre y gestionar accesos pueden ser permisos adicionales dentro de esos dos perfiles. No requieren inventar otros perfiles. Es preferible una cuenta por persona, aunque varias compartan el rol operario, para que el historial identifique al autor.
-
-### Identidad y trazabilidad
-
-El servidor debe resolver de la sesión un `actorId` estable, nombre, rol, estado activo y permisos. Un campo `role` o `operator` enviado por el navegador no debe decidir la autorización. Los movimientos deberían guardar autor autenticado, instante del servidor, comprobaciones realizadas y una instantánea del nombre para conservar la lectura histórica. Si quien introduce datos actúa por otra persona, registrar ambos conceptos de forma explícita.
-
-Las tareas necesitan responsable por ID, `completedBy` y `completedAt`. El cierre necesita firmante autenticado y versión de checklist. Los cambios de catálogo, capacidades y zona con stock requieren autor, motivo y valores anterior/nuevo. Los nombres históricos existentes no deben convertirse automáticamente en identidades verificadas durante una migración.
-
-Cada acción debe validar permisos en el backend. Ocultar botones adapta el trabajo de cada perfil, pero no impide una llamada directa a la API. Si el operario no puede descargar toda la información, el servidor tampoco debe enviarle el JSON completo y confiar en que la pantalla lo oculte.
-
-### Una fuente de información para ambos perfiles
-
-Oficina necesita una vista completa de catálogo, capacidad, mínimos, movimientos, incidencias y tareas. Los operarios necesitan localizar una referencia, conocer stock/capacidad, registrar una operación y completar trabajo asignado con formularios sencillos. Ambos deben usar los mismos identificadores y reglas, y ver cantidades coherentes para el mismo ámbito y revisión.
-
-Como evolución, se puede empezar incorporando autorización y contratos de lectura por perfil al backend existente. La normalización de datos no es imprescindible para una prueba pequeña de oficina, pero cobra valor con varios puestos y un histórico creciente.
-
-| Tabla propuesta | Información principal |
-| --- | --- |
-| `profiles` | Identidad vinculada al sistema de autenticación, nombre, rol y estado activo |
-| `products` | Referencias y mínimos, con SKU único |
-| `locations` | Bloques, áreas, pasillos, capacidad y estado de archivo |
-| `inventory_balances` | Saldo por bloque y referencia, conservando una referencia por bloque |
-| `movements` | Operación, cantidad, origen/destino, autor, fecha, documento y confirmaciones |
-| `operations` | Clave única de idempotencia, contenido y resultado de cada intención de escritura |
-| `tasks` | Asignación, fecha objetivo, estado y evidencia de finalización |
-| `closures` | Día/turno definido, firmante, versión de checklist y comprobaciones |
-| `incidents` | Discrepancia o no conformidad, responsable y resolución |
-| `audit_events` | Cambios administrativos y correcciones con antes/después |
-
-Esto es un diseño propuesto; estas tablas no existen hoy. Debe añadir claves foráneas, unicidad, restricciones e índices. El guardado de saldos, movimiento e idempotencia debe permanecer en una misma transacción, con bloqueo o control de versión de los saldos afectados. El histórico se consultaría por páginas. La migración debe preservar IDs e historial, reconciliar cantidades y conservar las restricciones de acceso.
-
-## 11 Cómo preparar el inventario real de la nave
-
-### Acordar el alcance y la unidad
-
-La app actual gestiona cartón y montaje/almacenaje de cajas. Cerámica, exposición, oficinas, instalaciones y muelle no son ubicaciones de stock. Trabaja en palets completos: no representa palets parciales, unidades interiores, lotes, series, reservas o pedidos. Si alguno es necesario en la nave, hay que ampliar primero el modelo; no conviene redondear cantidades para forzarlas a entrar.
-
-### Información que hay que recopilar
-
-| Registro de preparación | Campos a recopilar | Validación antes de cargar |
-| --- | --- | --- |
-| Referencias | SKU, descripción con medidas, familia, mínimo en palets | Código legible y único; evitar duplicados por mayúsculas/espacios; familia homogénea |
-| Bloques | Código, área, pasillo, capacidad validada | Código físico señalizado; área correcta; capacidad comprobada in situ |
-| Recuento inicial | SKU, bloque, palets enteros, persona y fecha del recuento, documento/observación | Referencia y bloque existentes, un SKU por bloque, cantidad dentro de capacidad |
-| Comprobaciones | Etiquetado y, si corresponde, autorización/revisión de apilado | Declaración real de la persona que revisa; no rellenar por defecto |
-| Personas | Nombre, identidad de acceso, perfil y autorización de cierre | Lo relativo a usuarios requiere la ampliación de perfiles |
-| Tareas | Título, zona, responsable real y fecha objetivo | Sustituir asignaciones genéricas de las nueve tareas iniciales |
-
-La fecha física de recuento y la persona verificadora conviene conservarlas en el registro de preparación. Hoy el movimiento guarda como fecha la del servidor al introducirlo; una fecha de recuento distinta solo puede anotarse como observación. Un futuro importador debe distinguir ambas fechas.
-
-### Orden de carga con las pantallas actuales
-
-1. Acordar una hora de corte y quién registra las operaciones durante el recuento para no contar dos veces una entrada o salida.
-2. Crear las referencias en Inventario, revisar SKU y descripción y comprobar duplicados.
-3. Crear las ubicaciones vacías en Ubicaciones con área, pasillo y capacidad reales. No deducir capacidad del plano.
-4. Registrar una entrada inicial por combinación de SKU y bloque. Si el mismo SKU está en tres bloques, registrar tres entradas. Si un bloque contiene dos SKU, corregir la organización física o definir bloques separados antes de cargar.
-5. Indicar responsable real, comprobaciones y una observación/documento que identifique el inventario inicial. `INICIAL-AAAA-MM-DD` es un ejemplo de convención, no un documento existente ni un tipo especial de movimiento.
-6. Comparar cantidades físicas y registradas por SKU, por bloque, por zona y en el total. Cargar el catálogo por sí solo deja el stock a cero.
-7. Actualizar datos, exportar una copia y verificar su contenido. Acordar quién autoriza el inicio y quién registra desde ese momento.
-
-Para un catálogo pequeño se puede hacer esta carga manual después de resolver los riesgos prioritarios. Para muchos registros falta un importador por lotes con mapeo de columnas, simulación, errores por fila, identificador de lote, idempotencia y conciliación. No debe sustituir el estado entero para añadir datos.
-
-### Criterios de inventario aceptado
-
-- Cada SKU y cada bloque existen físicamente y tienen un único código normalizado.
-- Cada bloque ocupado tiene exactamente un SKU válido y una cantidad entera mayor que cero y hasta su capacidad. Un bloque vacío tiene cantidad cero y SKU vacío.
-- El stock por referencia equivale a la suma de sus bloques; el total por zonas más los pendientes de asignar coincide con el total general. Para arrancar, los pendientes deben quedar resueltos.
-- Las entradas iniciales explican todos los saldos iniciales y están identificadas como tales.
-- El recuento tiene fecha de corte, responsable y revisión; las discrepancias quedan resueltas o registradas antes de aceptar el saldo.
-- La copia inicial puede restaurarse en una base aislada con las mismas cantidades y relaciones.
-
-## 12 Trabajo pendiente en orden de prioridad
-
-### Antes de abrir el uso conjunto de oficina y operarios
-
-1. **Identidad y permisos reales.** Implementar la matriz de la sección 10, atribuir operaciones desde sesión y adaptar las vistas. Terminado cuando un operario no puede editar catálogo/capacidades ni obtener una copia completa mediante una llamada directa, y ambos perfiles ven el mismo saldo autorizado.
-2. **Reintentos sin duplicar movimientos.** Generar una clave de operación estable, conservarla al reintentar y asegurar unicidad en el servidor. Terminado cuando perder la respuesta y reenviar produce exactamente un movimiento; reutilizar la clave con otros datos se rechaza.
-3. **Datos actualizados entre puestos.** Rechazar respuestas con revisión menor y refrescar al recuperar foco y tras cambios. Terminado cuando oficina y operarios convergen al saldo guardado y la pantalla informa de datos desactualizados.
-4. **Confirmaciones y autoría conservadas.** Desmarcar comprobaciones cuando cambie SKU, cantidad, tipo, origen, destino o apilado; guardarlas vinculadas a operación y autor. Terminado cuando no se puede reutilizar una comprobación hecha sobre otra operación.
-
-### Antes de confiar el inventario real a la app
-
-5. **Importación y recuperación verificadas.** Validar el documento completo, proteger también tareas, añadir simulación y copia previa y ensayar recuperación. Terminado cuando todos los casos inválidos se rechazan sin escribir y una copia válida recupera los mismos saldos.
-6. **Recuentos, ajustes y correcciones.** Añadir motivo, identidad, cantidades anterior/nueva y referencia al error corregido. No borrar el movimiento original. Terminado cuando una equivocación se corrige sin simular una expedición real.
-7. **Evitar cambios de datos sin rastro.** Rechazar ID desconocido al editar, validar fechas civiles y auditar cambios de área/pasillo con stock. Se ha reproducido en memoria que cambiar el área de un bloque ocupado no crea movimiento y que se acepta `2026-99-99` como fecha de tarea.
-8. **Preparación física y carga inicial.** Recopilar y validar los datos de la sección 11 y ensayar el ciclo completo con el equipo.
-
-### Calidad y operación del despliegue
-
-9. **Lint y automatización.** Resolver los tres usos de `any`, dos errores de efectos y el import no usado en `app/page.tsx`. Añadir CI con lint, tipos, pruebas y compilación, más integración en Postgres aislado para permisos, reintentos y concurrencia. No hay una barrera CI versionada en el repositorio actual.
-10. **Acceso y recuperación operativa.** Confirmar límite distribuido de login, copias, retención, restauración, alertas y responsable de incidencias. Fijar la misma versión principal compatible de Node en desarrollo y despliegue.
-11. **Fotografías, si se van a usar.** Corregir tamaño, cancelación, formatos y tratamiento de fallos; verificar proveedor y coste con etiquetas reales. La carga manual no depende del OCR.
-12. **Trabajo de operarios en móvil y cierre.** Probar menú, formularios, teclado y reconexión en sus dispositivos; revisar impresión de casillas; permitir comunicar incidencias sin declarar falsamente cinco conformidades. La interfaz de cierre actual solo admite conformidad completa.
-13. **Crecimiento y mantenimiento.** Paginar/separar movimientos, añadir archivo lógico, migraciones versionadas y rol de base con permisos mínimos. Hoy cada lectura/escritura transporta todo el histórico y el arranque necesita DDL.
-
-Los puntos 1 a 4 son requisitos del uso con los dos perfiles solicitados. Ya no se consideran una ampliación opcional. No hace falta desplegar otra vez para comprobar que el sitio existe; hace falta completar y probar estos cambios antes de habilitar el trabajo compartido.
-
-## 13 Cómo desplegar y mantener la app
-
-El proyecto incluye `vercel.json` para Next.js y región `cdg1`. La documentación del repositorio sitúa la base en París; la ubicación y configuración efectiva del proveedor deben confirmarse antes de cambiar entornos. Se necesita un servidor Next.js con rutas de API; no es una exportación estática. [Next.js documenta las opciones de despliegue con servidor](https://nextjs.org/docs/app/getting-started/deploying).
-
-| Configuración | Uso |
-| --- | --- |
-| Node | `package.json` exige 22.13.0 o superior; esta revisión se ejecutó con 25.8.2 |
-| `WAREHOUSE_ADMIN_USER` | Cuenta única actual; reemplazar el diseño de acceso cuando se incorporen personas y roles |
-| `WAREHOUSE_ADMIN_PASSWORD` | Contraseña y material para firma de sesión; mantener como secreto de servidor |
-| `DATABASE_URL` o `POSTGRES_URL` | Conexión privada de Postgres; comprobar prioridad y destino antes de operar |
-| Credenciales del proveedor de IA | Solo para lectura de fotos; verificar configuración del AI Gateway en cada entorno |
-| Variables de producción y previsualización | Deben apuntar a bases separadas para que ensayos no modifiquen inventario real |
-
-Las variables necesarias para login y Postgres están presentes localmente. Se detectó un token OIDC de Vercel y ausencia de `AI_GATEWAY_API_KEY`; la mera presencia del token no acredita que el OCR funcione. No se incluyen valores de secretos en este documento.
-
-Preparación reproducible:
+Para desarrollar sin escribir en Supabase se ha añadido almacenamiento explícito local:
 
 ```sh
-npm ci
+WAREHOUSE_LOCAL_DATA_DIR=outputs/dev-data/mi-prueba npm run dev -- --webpack --hostname 127.0.0.1
+```
+
+En este modo, `warehouse.json` guarda estado/revisión y `users.json` guarda cuentas de prueba con hashes. Se guardan bajo el directorio indicado. Es una ayuda de desarrollo, no una alternativa de producción. Con `NODE_ENV=production` ese modo se rechaza. Sin la variable local, el servidor usa la conexión Postgres configurada; arrancar en modo desarrollo por sí solo no aísla los datos.
+
+Para revisar esta entrega se usa `outputs/dev-data/refocus`, con datos marcados DEMO LOCAL y cuentas de ensayo ya desactivadas. La cuenta principal existente sigue disponible. Un directorio local nuevo comienza vacío de inventario y órdenes.
+
+Comprobaciones de código:
+
+```sh
 npm test
 npm run lint
 npx tsc --noEmit
-npm run build
+npm run build -- --webpack
 ```
 
-En este entorno el build predeterminado falla por el permiso de puerto interno; `npm run build -- --webpack` sí termina correctamente. Esto no resuelve los errores de lint. Para desarrollo local se ha usado `npm run dev -- --webpack --hostname 127.0.0.1`. Para servir una compilación de producción se utiliza `npm start`.
+La opción webpack evita el fallo de permisos de puerto interno observado con Turbopack en este equipo. No se ha modificado el compilador predeterminado del proyecto solo por esa limitación local.
 
-Antes de un nuevo despliegue, verificar la separación de bases, el contenido del paquete y que no incluya `.env`, copias o informes privados. El proyecto ya tiene `.gitignore` y `.vercelignore` para esas exclusiones. Preparar una copia verificada y un procedimiento de vuelta atrás, especialmente si se cambia el esquema; volver a una versión que exponga el Data API no es una recuperación válida.
+Antes de publicar: preparar una base de pruebas, validar la inicialización de `warehouse_users` y su protección, comprobar roles con varias sesiones, ensayar escritura concurrente y recuperación, probar el panel en el dispositivo de la nave y asegurar que `WAREHOUSE_LOCAL_DATA_DIR` no esté definido en producción. Después se podrá desplegar la versión validada, crear las cuentas reales y cargar el inventario conciliado. Un rollback al código antiguo no debe escribir el nuevo estado sin verificar compatibilidad: podría perder órdenes/horarios por su tratamiento anterior del JSON.
 
-Después, comprobar login, rechazo sin sesión, permisos por perfil, lectura, origen de escrituras, conexión, RLS y permisos públicos retirados. Los ensayos que generen movimientos deben hacerse primero en la base aislada. En producción verificar disponibilidad, permisos y conciliación con datos reales autorizados.
+La sesión de pantalla caduca a las ocho horas. En la primera fase habrá que entrar de nuevo cada turno. Para un dispositivo permanentemente encendido queda pendiente decidir un acceso de kiosco renovable, con credenciales y revocación propias, sin dejar abierta una sesión de administrador en la pantalla pública.
 
-## 14 Pruebas de aceptación antes del primer turno
+## 14. Validación y siguientes pasos
 
-| Ensayo en entorno aislado | Resultado exigido |
-| --- | --- |
-| Crear referencia y bloque, introducir saldo inicial | Catálogo y saldos correctos en ambas vistas/perfiles |
-| Entrada, traslado y salida | Stock por bloque y SKU correcto; un movimiento por operación |
-| Dos usuarios escriben sobre la misma revisión | Conflicto controlado sin pérdida de datos |
-| Guardado correcto cuya respuesta se pierde | Reintento devuelve resultado previo sin duplicar |
-| GET antiguo llega después de un guardado | La pantalla no retrocede de revisión |
-| Operario intenta editar capacidades o exportar copia por API | Rechazo en el servidor, aunque se manipule la petición |
-| Cambiar campos después de marcar comprobaciones | Obliga a comprobar otra vez |
-| Cantidad negativa, exceso de capacidad, SKU ajeno o mezcla de referencias | Rechazo sin alterar saldos |
-| Archivo inválido o base con tareas propias | Restauración/importación rechazada sin pérdida |
-| Restaurar copia válida | Mismos saldos, relaciones, histórico, tareas y cierres esperados |
-| Recuento con diferencia | Incidencia y ajuste autorizado con trazabilidad |
-| Cierre conforme y cierre con incidencia | Firma del autorizado o registro veraz de la incidencia según el flujo implementado |
-| Sesión caducada y desconexión | Mensaje útil; reentrada y revisión del borrador sin duplicar operación |
-| Móvil e impresión | Formularios utilizables y checklist legible con sus estados |
+Se han ejecutado pruebas automatizadas de inventario, controles de acceso, adaptador SQL simulado, órdenes/producción, cuentas y restauración. También se ha probado la API de Next en el servidor local aislado: login, prohibiciones por rol, origen, autor autenticado, conflicto 409, viaje atómico, cierre repetido sin duplicado, recurrencia, proyección de pantalla y revocación de cuentas.
 
-El primer turno real se acepta cuando los saldos físicos coinciden, oficina y operarios trabajan con sus permisos, se conoce quién resuelve incidencias y hay una copia recuperable. Una pantalla accesible y una compilación correcta no bastan para acreditar esas condiciones.
+La revisión visual en Chrome ha cubierto dashboard, inventario, organización del turno, formulario de finalización de viaje y panel de pantalla. Se corrigió el desbordamiento inicial del panel mediante tres columnas y listas rotatorias. Esta revisión de escritorio no acredita todavía lectura desde la puerta ni uso táctil en tablets.
 
-## 15 Evidencias y referencias de mantenimiento
-
-La explicación de implementación procede de los archivos indicados en la sección 2 y del modelo en `lib/warehouse.ts`. Los números de línea siguientes corresponden al código base revisado y pueden cambiar al editarlo:
-
-| Tema | Punto de entrada en el código |
-| --- | --- |
-| Campos y reglas | `lib/warehouse.ts:2` y `lib/warehouse.ts:23` |
-| Zonas admitidas | `lib/areas.ts:1` |
-| Lectura y guardado HTTP | `lib/server/warehouse-api.ts:18` |
-| Esquema y escritura condicional | `db/postgres-warehouse.ts:4` y `db/postgres-warehouse.ts:40` |
-| Conexión e inicialización | `db/supabase-warehouse.ts:15` |
-| Sesión y duración | `lib/server/session.ts:6` y `lib/server/session.ts:91` |
-| Cálculos de pantalla | `app/page.tsx:42` |
-| Reintentos y refresco | `app/page.tsx:29` y `app/page.tsx:38` |
-| Importador | `scripts/import-state.mjs:29` y `scripts/import-state.mjs:52` |
-
-Evidencias locales de esta revisión, excluidas del despliegue y del repositorio por la configuración existente:
-
-- `outputs/audit/2026-10-01/production-readonly-report.json`: acceso publicado, recuentos, metadatos de RLS/permisos y rechazo del Data API.
-- `outputs/audit/2026-10-01/local-readonly-report.json`: login y lectura en el servidor local.
-- `outputs/audit/2026-10-01/quality-summary.json`, `test.log`, `lint-report.json` y `build-webpack.log`: pruebas, lint y compilación.
-- `outputs/audit/2026-10-01/domain-report.json`: 11 reproducciones de reglas e importación en memoria, sin escrituras en la base ni peticiones de red.
-
-La auditoría del 29 de septiembre permanece en [TODO_APP.md](../TODO_APP.md) como detalle previo de incidencias. Esta revisión actualiza el estado comprobado y convierte los perfiles de oficina y operarios en requisito del alcance solicitado.
-
-Quedan pendientes de comprobación práctica el OCR real, restauración completa, concurrencia contra Postgres, operación con inventario físico, móvil real y salida impresa. Los riesgos de formularios y cálculos descritos proceden de lectura del código y reproducciones en memoria cuando se indica; no se presentan como ensayos físicos completados.
+El siguiente paso operativo es reunir catálogo, bloques, capacidades y recuento reales. El siguiente paso técnico es un ensayo de esta versión en una base Postgres separada, con copia/restauración y varias sesiones. Antes de un uso intensivo conviene cerrar la idempotencia general y el procedimiento de correcciones de stock. La integración de pedidos/camiones con movimientos y las tablets quedan como ampliaciones explícitas, no como funciones ya disponibles.
