@@ -10,7 +10,7 @@ import { madridDay, checklist, type State, type Product, type Location, type Mov
 import { useWarehouse } from '@/hooks/use-warehouse';
 import type { PublicUser } from '@/lib/identity';
 import { warehouseAreas, areaName, isWarehouseArea } from '@/lib/areas';
-import { boxesPerPallet, formatPallets, locationsToReview, modelKey, modelName, palletShape, PLANCHA_MINIMUM, productKind, stockBySku } from '@/lib/warehouse-insights';
+import { boxesPerPallet, formatPallets, locationsToReview, modelKey, modelName, palletShape, CAJA_MINIMUM, productKind, stockBySku } from '@/lib/warehouse-insights';
 import { layoutWarehouse, STACK_HEIGHT } from '@/lib/warehouse-layout';
 import AppShell, { inventoryViews, type InventoryView } from '../components/app-shell';
 import { useAppReady } from '../components/app-loader';
@@ -54,7 +54,7 @@ function SearchField({ value, onChange, placeholder }: { value: string; onChange
 function Empty({ title, detail, children }: { title: string; detail: string; children?: ReactNode }) { return <div className="empty"><Boxes size={30} strokeWidth={1.5}/><h3>{title}</h3><p>{detail}</p>{children}</div>; }
 function download(name: string, content: string, type: string) { const url = URL.createObjectURL(new Blob([content], { type })); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 function csv(rows: unknown[][]) { return '﻿' + rows.map(r => r.map(v => { let s = String(v ?? ''); if (/^[=+@\-\t\r]/.test(s)) s = "'" + s; return '"' + s.replaceAll('"', '""') + '"'; }).join(';')).join('\r\n'); }
-const emptyForm = () => ({ id: '', sku: '', name: '', family: 'Planchas', minimum: PLANCHA_MINIMUM, boxesPerPallet: 0, code: '', zone: '', area: '', capacity: 1, title: '', owner: '', due: '', done: false, kind: 'entrada', qty: 1, location: '', destination: '', operator: '', document: '', notes: '', stacked: false, safe: false, labelled: false, verified: false });
+const emptyForm = () => ({ id: '', sku: '', name: '', family: 'Planchas', minimum: 0, boxesPerPallet: 0, code: '', zone: '', area: '', capacity: 1, title: '', owner: '', due: '', done: false, kind: 'entrada', qty: 1, location: '', destination: '', operator: '', document: '', notes: '', stacked: false, safe: false, labelled: false, verified: false });
 type InventoryForm = ReturnType<typeof emptyForm>;
 
 export default function Inventory({ user }: { user: PublicUser }) {
@@ -92,12 +92,12 @@ export default function Inventory({ user }: { user: PublicUser }) {
   }
   async function save(action: Record<string, unknown>) { setFormError(''); try { if (!await saveWarehouse(action)) return false; toast.success('Guardado'); return true; } catch (e) { const msg = e instanceof Error ? e.message : 'No se ha podido guardar.'; setFormError(msg); toast.error(msg); return false; } }
   function open(type: string, record: Partial<InventoryForm> = {}) { setFormError(''); setModal(type); setForm({ ...emptyForm(), operator: user.name, area: isWarehouseArea(areaFilter) ? areaFilter : '', ...record }); }
-  // A new plancha starts at the warehouse minimum; switching to cajas drops that default.
+  // A new caja starts at the warehouse minimum of 26 pallets; planchas have none.
   function changeFamily(family: string) {
     setForm(prev => {
-      const untouched = prev.minimum === 0 || prev.minimum === PLANCHA_MINIMUM;
+      const untouched = prev.minimum === 0 || prev.minimum === CAJA_MINIMUM;
       if (prev.id || !untouched) return { ...prev, family };
-      return { ...prev, family, minimum: productKind({ sku: prev.sku, family }) === 'plancha' ? PLANCHA_MINIMUM : 0 };
+      return { ...prev, family, minimum: productKind({ sku: prev.sku, family }) === 'caja' ? CAJA_MINIMUM : 0 };
     });
   }
   const f = <K extends keyof InventoryForm>(key: K, value: InventoryForm[K]) => setForm(prev => ({ ...prev, ...(['kind', 'sku', 'qty', 'location', 'destination', 'document', 'stacked'].includes(key) ? { safe: false, labelled: false, verified: false } : {}), [key]: value }));

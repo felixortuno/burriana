@@ -3,8 +3,8 @@ import type { Location, Product, State } from './warehouse.ts';
 
 export type ProductKind = 'plancha' | 'caja' | 'otro';
 
-/** Warehouse rule since 01/10/2026: keep at least 26 pallets of every plancha. */
-export const PLANCHA_MINIMUM = 26;
+/** Warehouse rule since 01/10/2026: keep at least 26 pallets of every caja (planchas have no minimum). */
+export const CAJA_MINIMUM = 26;
 
 /** Planchas and cajas of one model share the code; only the -PL / -CJ suffix differs. */
 export function modelKey(sku: string) {
