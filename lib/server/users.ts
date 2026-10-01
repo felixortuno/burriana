@@ -64,8 +64,8 @@ function text(value: unknown, field: string, max: number): string {
 }
 
 function passwordInput(value: unknown): string {
-  if (typeof value !== 'string' || value.length < 12 || value.length > 256) {
-    throw new UserInputError('La contraseña debe tener entre 12 y 256 caracteres.');
+  if (typeof value !== 'string' || value.length < 6 || value.length > 256) {
+    throw new UserInputError('La contraseña debe tener entre 6 y 256 caracteres.');
   }
   return value;
 }

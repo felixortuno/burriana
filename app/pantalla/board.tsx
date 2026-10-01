@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   ArrowDownLeft, ArrowUpRight, ArrowRight, Check, Clock3, Coffee,
   Factory, ListOrdered, LogOut, Maximize, Megaphone, Package,
-  Radio, Sparkles, Truck, Wrench, WifiOff, CalendarClock,
+  Radio, Settings2, Sparkles, Truck, Wrench, WifiOff, CalendarClock,
 } from 'lucide-react';
 import Logo from '../components/logo';
 import { useAppReady } from '../components/app-loader';
@@ -328,6 +329,6 @@ export default function WarehouseBoard() {
       </div>
     </div>}
 
-    <footer className="wb-footer"><div><span className={`wb-dot${stale ? ' wb-dot-warning' : ''}`} /><span>{lastSuccess === null ? 'Esperando primera actualización' : `Última actualización ${registeredAt(new Date(lastSuccess + clockOffset).toISOString(), current.day)}`}</span><span className="wb-footer-interval">Actualización cada 10 s · Listas cada 15 s · Hora de Madrid</span></div><div className="wb-controls"><button onClick={fullscreen} aria-label="Activar o salir de pantalla completa"><Maximize size={16} /> Pantalla completa</button><button onClick={logout} disabled={exiting}><LogOut size={16} /> {exiting ? 'Saliendo…' : 'Salir'}</button></div></footer>
+    <footer className="wb-footer"><div><span className={`wb-dot${stale ? ' wb-dot-warning' : ''}`} /><span>{lastSuccess === null ? 'Esperando primera actualización' : `Última actualización ${registeredAt(new Date(lastSuccess + clockOffset).toISOString(), current.day)}`}</span><span className="wb-footer-interval">Actualización cada 10 s · Listas cada 15 s · Hora de Madrid</span></div><div className="wb-controls"><Link href="/ajustes"><Settings2 size={16}/> Ajustes</Link><button onClick={fullscreen} aria-label="Activar o salir de pantalla completa"><Maximize size={16} /> Pantalla completa</button><button onClick={logout} disabled={exiting}><LogOut size={16} /> {exiting ? 'Saliendo…' : 'Salir'}</button></div></footer>
   </main>;
 }

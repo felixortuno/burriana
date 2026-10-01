@@ -269,7 +269,7 @@ Respuestas: 400 para datos o reglas inválidas; 401 para sesión ausente/caducad
 
 La cookie `burriana_sesion` es HttpOnly, SameSite=Lax y Secure en producción. Dura ocho horas desde el acceso. Los tokens nuevos contienen identidad, versión de sesión y caducidad; el rol se obtiene del registro actual, no de un campo que envíe el cliente. Los tokens antiguos de la cuenta principal siguen siendo válidos durante la actualización.
 
-Las contraseñas de cuentas nuevas se almacenan con scrypt y sal aleatoria. Se exigen entre 12 y 256 caracteres. La credencial principal conserva la política existente y se configura en el servidor. Cambiarla invalida las sesiones; cambiar rol/contraseña de una cuenta o desactivarla incrementa su versión y revoca sus tokens anteriores. El cierre normal borra la cookie del navegador, sin una lista de revocación individual por dispositivo.
+Las contraseñas de cuentas nuevas se almacenan con scrypt y sal aleatoria. Se exigen entre 6 y 256 caracteres. La credencial principal conserva la política existente y se configura en el servidor. Cambiarla invalida las sesiones; cambiar rol/contraseña de una cuenta o desactivarla incrementa su versión y revoca sus tokens anteriores. El cierre normal borra la cookie del navegador, sin una lista de revocación individual por dispositivo.
 
 La API comprueba estado activo en cada petición y origen en escrituras. El limitador de intentos de login vive en memoria de cada instancia; no es un límite distribuido entre todas las funciones. Para acceso público sostenido queda pendiente valorar una protección compartida. No hay recuperación de contraseña por correo ni autenticación multifactor integrada.
 

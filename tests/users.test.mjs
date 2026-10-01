@@ -234,6 +234,15 @@ test('SQL user lookups pass user-controlled values as parameters', async () => {
   assert.deepEqual(captured[0].params, [malicious]);
 });
 
+test('new profiles need passwords of 6 to 256 characters', async () => {
+  const admin = { id: 'bootstrap', username: 'admin', name: 'Administración', role: 'administrador' };
+  const store = { async create() { return true; } };
+  const input = { username: 'operario', name: 'Operario', role: 'encargado' };
+  await assert.rejects(createUser(admin, { ...input, password: '12345' }, store), /entre 6 y 256/);
+  assert.equal((await createUser(admin, { ...input, password: '123456' }, store)).username, 'operario');
+  await assert.rejects(createUser(admin, { ...input, password: 'x'.repeat(257) }, store), /entre 6 y 256/);
+});
+
 test('password hashes reject wrong passwords and malformed hashes', async () => {
   const hash = await hashPassword('contraseña-de-prueba');
   assert.equal(await verifyPassword('contraseña-de-prueba', hash), true);

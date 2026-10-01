@@ -1,0 +1,42 @@
+.settings-sections { margin-bottom: 24px; }
+.profile-settings { max-width: 1060px; }
+.profile-overview { display: flex; align-items: center; gap: 16px; padding: 4px 0 28px; }
+.profile-initial { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 20px; background: var(--fill); font-size: 28px; font-weight: 600; flex-shrink: 0; }
+.profile-overview h2 { font-size: 24px; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.profile-overview p { color: var(--ink-3); font-size: 14px; margin-top: 2px; overflow-wrap: anywhere; }
+.profile-role { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 980px; font-size: 13px; font-weight: 500; background: var(--surface); color: var(--ink-2); white-space: nowrap; }
+.profile-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; margin-bottom: 20px; }
+.profile-columns > .group, .profile-settings .roles > .group { margin: 0; }
+.profile-settings .group-head h2 { display: flex; align-items: center; gap: 9px; }
+.profile-settings .group-head h2 svg { color: var(--ink-3); flex-shrink: 0; }
+.profile-form-fields { padding: 10px 22px 22px; }
+.profile-form-fields .callout { margin-top: 14px; }
+.profile-note { color: var(--ink-3); font-size: 13px; line-height: 1.55; }
+.profile-main-account { margin-bottom: 24px; align-items: flex-start; }
+.profile-main-account > svg { flex-shrink: 0; margin-top: 2px; }
+.profile-main-account p { margin-top: 4px; max-width: 76ch; }
+.profile-main-account .btn { margin-top: 12px; }
+.profile-access .group-head { padding-bottom: 18px; }
+.team-settings { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; padding: 24px; margin-bottom: 20px; }
+.team-settings-icon { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: var(--blue-tint); color: var(--blue-text); }
+.team-settings h2 { font-size: 21px; font-weight: 600; letter-spacing: -.025em; }
+.team-settings p { font-size: 14px; color: var(--ink-2); margin-top: 4px; }
+.team-settings ul { grid-column: 2 / -1; padding-left: 17px; font-size: 14px; color: var(--ink-2); line-height: 1.9; }
+.settings-display { min-height: 100vh; background: var(--canvas); }
+.settings-display-bar { display: flex; align-items: center; justify-content: space-between; padding: 20px 32px; gap: 20px; border-bottom: 1px solid var(--hairline); background: var(--surface); }
+.settings-display-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; }
+.settings-display-content { max-width: 1124px; margin: auto; padding: 36px 32px; }
+@media (max-width: 740px) {
+  .profile-columns { grid-template-columns: minmax(0, 1fr); }
+  .profile-overview { flex-wrap: wrap; gap: 12px; }
+  .profile-overview h2 { font-size: 21px; }
+  .profile-role { margin-left: 0; }
+  .profile-form-fields { padding-left: 16px; padding-right: 16px; }
+  .profile-access .group-head { align-items: flex-start; flex-direction: column; }
+  .team-settings { grid-template-columns: auto 1fr; padding: 20px; }
+  .team-settings > .btn { grid-column: 1 / -1; justify-self: start; }
+  .team-settings ul { grid-column: 1 / -1; }
+  .settings-display-bar { padding: 16px; }
+  .settings-display-brand { font-size: 0; gap: 0; }
+  .settings-display-content { padding: 28px 16px; }
+}

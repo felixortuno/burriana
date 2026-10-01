@@ -17,7 +17,7 @@ export type NavKey = 'inicio' | 'operaciones' | 'usuarios' | 'ajustes' | `invent
 type NavItem = { key: NavKey; label: string; href: string; Icon: LucideIcon; admin?: boolean };
 
 export const inventoryViews: { view: InventoryView; label: string; Icon: LucideIcon }[] = [
-  { view: 'resumen', label: 'Existencias', Icon: Boxes },
+  { view: 'resumen', label: 'Inventario por modelo', Icon: Boxes },
   { view: '3d', label: 'Vista 3D', Icon: Rotate3d },
   { view: 'referencias', label: 'Referencias', Icon: Tags },
   { view: 'ubicaciones', label: 'Ubicaciones', Icon: MapIcon },
@@ -35,12 +35,13 @@ const groups: { title: string; items: NavItem[] }[] = [
     { key: 'inicio', label: 'Inicio', href: '/', Icon: Home },
     { key: 'operaciones', label: 'Organización', href: '/operaciones', Icon: ClipboardList },
   ] },
-  { title: 'Almacén', items: (['resumen', '3d', 'referencias', 'ubicaciones', 'movimientos'] as const).map(inventoryItem) },
+  { title: 'Inventario', items: (['resumen', 'referencias', 'movimientos'] as const).map(inventoryItem) },
+  { title: 'Plano y ubicaciones', items: (['3d', 'ubicaciones'] as const).map(inventoryItem) },
   { title: 'Rutina', items: (['5s', 'cierre', 'protocolo'] as const).map(inventoryItem) },
   { title: 'Administración', items: [
     { key: 'usuarios', label: 'Personas y accesos', href: '/usuarios', Icon: Users, admin: true },
-    { key: 'ajustes', label: 'Ajustes', href: '/ajustes', Icon: Settings2, admin: true },
   ] },
+  { title: 'Mi cuenta', items: [{ key: 'ajustes', label: 'Ajustes', href: '/ajustes', Icon: Settings2 }] },
 ];
 
 export type PaletteAction = { label: string; hint?: string; Icon: LucideIcon; run: () => void };
@@ -114,7 +115,10 @@ export default function AppShell({ user, active, data, sync, actions = [], child
       </div>
       <button className="sidebar-search" onClick={() => { setMenu(false); setPalette(true); }}><Search size={15}/><span>Buscar</span><kbd>⌘K</kbd></button>
       <nav>
-        {visible.map(group => <div className="nav-group" key={group.title}>
+        {visible.map(group => group.title === 'Plano y ubicaciones' ? <details className="nav-group nav-secondary" key={group.title} open={active === 'inventario:3d' || active === 'inventario:ubicaciones' ? true : undefined}>
+          <summary>{group.title}</summary>
+          {group.items.map(({ key, label, href, Icon }) => <Link key={key} href={href} aria-current={key === active ? 'page' : undefined} onClick={event => navigate(href, event)}><Icon size={17}/>{label}</Link>)}
+        </details> : <div className="nav-group" key={group.title}>
           <h2>{group.title}</h2>
           {group.items.map(({ key, label, href, Icon }) => <Link key={key} href={href} aria-current={key === active ? 'page' : undefined} onClick={event => navigate(href, event)}><Icon size={17}/>{label}</Link>)}
         </div>)}
@@ -123,7 +127,7 @@ export default function AppShell({ user, active, data, sync, actions = [], child
         <a className="display-link" href="/pantalla" target="_blank" rel="noreferrer"><Monitor size={17}/><span>Pantalla del almacén<small>Se abre en otra pestaña</small></span></a>
         <div className="me">
           <span className="avatar" aria-hidden="true">{user.name.slice(0, 1).toUpperCase()}</span>
-          <span className="me-text"><b>{user.name}</b><small>{user.role === 'administrador' ? 'Administrador' : 'Encargado'}</small></span>
+          <Link href="/ajustes" className="me-text" title="Abrir mis ajustes" onClick={() => setMenu(false)}><b>{user.name}</b><small>{user.role === 'administrador' ? 'Administrador' : 'Encargado'}</small></Link>
           <button className="icon-btn" onClick={logout} aria-label="Cerrar sesión" title="Cerrar sesión"><LogOut size={16}/></button>
         </div>
         {logoutError && <p className="sidebar-error" role="alert">{logoutError}</p>}
@@ -148,11 +152,6 @@ export default function AppShell({ user, active, data, sync, actions = [], child
 
 function Palette({ open, onOpenChange, groups, actions, data, onNavigate }: { open: boolean; onOpenChange: (open: boolean) => void; groups: { title: string; items: NavItem[] }[]; actions: PaletteAction[]; data?: State; onNavigate: (href: string) => void }) {
   const stock = useMemo(() => data ? stockBySku(data) : new Map<string, number>(), [data]);
-  const firstLocation = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const location of data?.locations ?? []) if (location.qty && !map.has(location.sku)) map.set(location.sku, location.id);
-    return map;
-  }, [data]);
   const orders = (data?.workOrders ?? []).filter(order => !['completada', 'cancelada'].includes(order.status)).slice(0, 30);
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="palette" showCloseButton={false}>
@@ -167,8 +166,7 @@ function Palette({ open, onOpenChange, groups, actions, data, onNavigate }: { op
           </CommandPrimitive.Group>}
           {data && data.products.length > 0 && <CommandPrimitive.Group heading="Referencias">
             {data.products.map(product => {
-              const location = firstLocation.get(product.sku);
-              const href = location ? `/inventario?vista=3d&ubicacion=${encodeURIComponent(location)}` : `/inventario?vista=referencias&q=${encodeURIComponent(product.sku)}`;
+              const href = `/inventario?q=${encodeURIComponent(product.sku)}`;
               return <CommandPrimitive.Item key={product.id} value={`${product.name} ${product.sku}`} onSelect={() => onNavigate(href)}>
                 <Tags size={17}/><span>{product.name}<em>{product.sku}</em></span><small>{formatPallets(stock.get(product.sku) ?? 0)} palets</small>
               </CommandPrimitive.Item>;

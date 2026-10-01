@@ -16,6 +16,7 @@ export interface UsersStore {
   create(user: StoredUser): Promise<boolean>;
   disable(id: string): Promise<StoredUser | null>;
   update(id: string, changes: Pick<StoredUser, 'name' | 'role'> & { passwordHash?: string }): Promise<StoredUser | null>;
+  updateProfile(id: string, sessionVersion: number, changes: { name?: string; passwordHash?: string }): Promise<StoredUser | null>;
 }
 
 export const USERS_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS public.warehouse_users (
@@ -89,6 +90,13 @@ export function createPostgresUsersStore(executor: UsersExecutor): UsersStore {
         updated_at = now() WHERE id = $1 AND active = true RETURNING *`,
       [id, changes.name, changes.role, changes.passwordHash ?? null]))[0] ?? null;
     },
+    async updateProfile(id, sessionVersion, changes) {
+      return (await query(`UPDATE public.warehouse_users SET name = COALESCE($3::text, name),
+        password_hash = COALESCE($4::text, password_hash),
+        session_version = session_version + CASE WHEN $4::text IS NULL THEN 0 ELSE 1 END,
+        updated_at = now() WHERE id = $1 AND session_version = $2 AND active = true RETURNING *`,
+      [id, sessionVersion, changes.name ?? null, changes.passwordHash ?? null]))[0] ?? null;
+    },
   };
 }
 
@@ -148,6 +156,16 @@ export function createLocalUsersStore(directory: string): UsersStore {
       user.role = changes.role;
       if (changes.passwordHash !== undefined) user.passwordHash = changes.passwordHash;
       user.sessionVersion += 1;
+      return structuredClone(user);
+    }),
+    updateProfile: (id, sessionVersion, changes) => mutate((users) => {
+      const user = users.find((entry) => entry.id === id && entry.active && entry.sessionVersion === sessionVersion);
+      if (!user) return null;
+      if (changes.name !== undefined) user.name = changes.name;
+      if (changes.passwordHash !== undefined) {
+        user.passwordHash = changes.passwordHash;
+        user.sessionVersion += 1;
+      }
       return structuredClone(user);
     }),
   };

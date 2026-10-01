@@ -1,7 +1,8 @@
 'use client';
 import { useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowDownToLine, ArrowUpFromLine, CalendarClock, ChevronDown, ChevronUp, Factory, Monitor, Package, Pencil, Plus, RotateCcw, Search, Sparkles, Trash2, Wrench } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, CalendarClock, ChevronDown, ChevronUp, Factory, Monitor, Package, Pencil, Plus, RotateCcw, Search, Sparkles, Trash2, Wrench } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -15,10 +16,12 @@ import { BOXES_PER_LAYER, DEFAULT_BOXES_PER_PALLET, DEFAULT_LAYERS, formatPallet
 import AppShell from '../components/app-shell';
 import { useAppReady } from '../components/app-loader';
 import Logo from '../components/logo';
+import ProfileSettings, { TeamSettings } from './profile-settings';
 import '../components/management.css';
+import './settings.css';
 
-type Section = 'normas' | 'inventario' | 'apariencia' | 'pantalla';
-const sections: [Section, string][] = [['normas', 'Normas'], ['inventario', 'Inventario'], ['apariencia', 'Apariencia'], ['pantalla', 'Pantalla']];
+type Section = 'perfil' | 'equipo' | 'normas' | 'inventario' | 'apariencia' | 'pantalla';
+const adminSections: [Section, string][] = [['equipo', 'Equipo'], ['normas', 'Normas'], ['inventario', 'Inventario'], ['apariencia', 'Apariencia'], ['pantalla', 'Pantalla']];
 type Commit = (action: Record<string, unknown>, message: string) => Promise<boolean>;
 
 const kindInfo: Record<WorkOrderKind, { label: string; detail: string; Icon: typeof Factory }> = {
@@ -38,11 +41,30 @@ function nextWeekday(from: string, weekday: number) {
 }
 
 export default function SettingsClient({ user }: { user: PublicUser }) {
+  const [profile, setProfile] = useState(user);
+  if (user.role === 'pantalla') return <DisplayProfileSettings user={profile} onUpdate={setProfile}/>;
+  return <ManagementSettings user={profile} onUpdate={setProfile}/>;
+}
+
+function DisplayProfileSettings({ user, onUpdate }: { user: PublicUser; onUpdate: (user: PublicUser) => void }) {
+  return <div className="settings-display">
+    <Toaster position="bottom-right"/>
+    <header className="settings-display-bar"><Link href="/pantalla" className="btn secondary"><ArrowLeft size={16}/> Volver a la pantalla</Link><span className="settings-display-brand"><Logo size={28}/> Burriana</span></header>
+    <main className="settings-display-content">
+      <header className="page-head"><div><h1>Ajustes</h1><p>Tu perfil y la seguridad de tu cuenta.</p></div></header>
+      <ProfileSettings user={user} onUpdate={onUpdate}/>
+    </main>
+  </div>;
+}
+
+function ManagementSettings({ user, onUpdate }: { user: PublicUser; onUpdate: (user: PublicUser) => void }) {
   const { data, loading, error, busy, updatedAt, refresh, save } = useWarehouse();
-  useAppReady(!loading);
   const params = useSearchParams();
   const requested = params.get('seccion') as Section | null;
-  const section: Section = requested && sections.some(([key]) => key === requested) ? requested : 'normas';
+  const sections: [Section, string][] = [['perfil', 'Mi perfil'], ...(user.role === 'administrador' ? adminSections : [])];
+  const section: Section = requested && sections.some(([key]) => key === requested) ? requested : 'perfil';
+  const warehouseSection = section !== 'perfil' && section !== 'equipo';
+  useAppReady(!warehouseSection || !loading);
   const today = madridDay();
 
   const commit: Commit = async (action, message) => {
@@ -55,11 +77,13 @@ export default function SettingsClient({ user }: { user: PublicUser }) {
   return <AppShell user={user} active="ajustes" data={data} sync={{ updatedAt, error, busy, refresh }}>
     <Toaster position="bottom-right"/>
     <header className="page-head">
-      <div><h1>Ajustes</h1><p>Normas del turno, correcciones de inventario y colores de la app y de la pantalla. Solo el administrador puede cambiarlos.</p></div>
+      <div><h1>Ajustes</h1><p>{user.role === 'administrador' ? 'Tu cuenta, los accesos del equipo y las preferencias del almacén.' : 'Tu perfil y la seguridad de tu cuenta.'}</p></div>
     </header>
-    <div style={{ marginBottom: 20 }}><div className="segmented" role="group" aria-label="Apartado">{sections.map(([key, label]) => <button key={key} aria-pressed={section === key} onClick={() => go(key)}>{label}</button>)}</div></div>
-    {error && <div className="callout error banner" role="alert">{error}<button className="btn secondary" onClick={refresh}>Reintentar</button></div>}
-    {loading ? <div className="loading">Cargando los ajustes…</div> : !error && <>
+    {sections.length > 1 && <div className="settings-sections"><div className="segmented" role="group" aria-label="Apartado de ajustes">{sections.map(([key, label]) => <button key={key} aria-pressed={section === key} onClick={() => go(key)}>{label}</button>)}</div></div>}
+    {section === 'perfil' && <ProfileSettings user={user} onUpdate={onUpdate}/>}
+    {section === 'equipo' && <TeamSettings/>}
+    {warehouseSection && error && <div className="callout error banner" role="alert">{error}<button className="btn secondary" onClick={refresh}>Reintentar</button></div>}
+    {warehouseSection && (loading ? <div className="loading">Cargando los ajustes…</div> : !error && <>
       {section === 'normas' && <>
         <Priorities key={JSON.stringify(data.settings.priorities)} saved={data.settings.priorities} busy={busy} commit={commit}/>
         <Rules rules={data.settings.rules} shift={data.shift} today={today} busy={busy} commit={commit}/>
@@ -70,7 +94,7 @@ export default function SettingsClient({ user }: { user: PublicUser }) {
       </>}
       {section === 'apariencia' && <AppearanceEditor key={JSON.stringify(data.settings.appearance)} saved={data.settings.appearance} busy={busy} commit={commit}/>}
       {section === 'pantalla' && <BoardEditor key={JSON.stringify(data.settings.board)} saved={data.settings.board} logo={data.settings.appearance} busy={busy} commit={commit}/>}
-    </>}
+    </>)}
   </AppShell>;
 }
 

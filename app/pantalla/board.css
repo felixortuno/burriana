@@ -47,6 +47,9 @@
 .wb-order-status,.wb-urgent{font-size:12px}
 .wb-focus-details b{border-radius:6px}
 .wb-controls button{border-radius:980px;padding:7px 12px}
+.wb-controls a{display:flex;align-items:center;gap:6px;border:1px solid var(--wb-line);border-radius:980px;padding:7px 12px;background:transparent;color:var(--wb-muted);font-size:inherit;text-decoration:none}
+.wb-controls a:hover{background:var(--wb-raised);color:var(--wb-white)}
+.wb-controls a:focus-visible{outline:3px solid var(--wb-lime);outline-offset:4px}
 .wb-alert,.wb-notice{border-radius:14px}
 .wb-focus h1{letter-spacing:-0.024em}
 .wb-clock time{letter-spacing:-0.03em;font-weight:600}

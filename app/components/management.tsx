@@ -3,7 +3,7 @@
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowDownToLine, ArrowRight, CalendarClock, ArrowUpFromLine, Check, ChevronRight, ClipboardList, Clock3, Coffee, Factory, Monitor, Package, Pause, Play, Plus, Rotate3d, Search, Settings2, ShieldCheck, Sparkles, Truck, Users, Wrench, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, CalendarClock, ArrowUpFromLine, Check, ChevronRight, ClipboardList, Clock3, Coffee, Factory, Monitor, Package, Pause, Play, Plus, Boxes, Search, Settings2, ShieldCheck, Sparkles, Truck, Users, Wrench, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useWarehouse } from '@/hooks/use-warehouse';
 import { madridDay, type Location, type State } from '@/lib/warehouse';
@@ -101,7 +101,7 @@ export default function Management({ section, user }: { section: 'dashboard' | '
     { label: 'Programar carga de camión', Icon: ArrowUpFromLine, run: () => newOrder('carga') },
     { label: 'Programar descarga de camión', Icon: ArrowDownToLine, run: () => newOrder('descarga') },
     { label: 'Horarios y aviso del turno', Icon: Settings2, run: () => setShiftOpen(true) },
-    { label: 'Abrir vista 3D del almacén', Icon: Rotate3d, run: () => router.push('/inventario?vista=3d') },
+    { label: 'Ver inventario por modelo', Icon: Boxes, run: () => router.push('/inventario') },
   ];
 
   return <AppShell user={user} active={section === 'dashboard' ? 'inicio' : section} data={data} sync={{ updatedAt, error, busy, refresh }} actions={actions}>
@@ -143,7 +143,7 @@ export default function Management({ section, user }: { section: 'dashboard' | '
           <section className="group">
             <div className="group-head"><div><h2>Almacén</h2><p>{low.length ? 'Referencias por debajo del mínimo definido.' : 'Stock por encima de los mínimos.'}</p></div><Link className="link" href={low.length ? '/inventario?vista=referencias&filtro=bajo' : '/inventario'}>{low.length === 1 ? 'Ver la referencia' : low.length ? `Ver las ${low.length}` : 'Existencias'}<ChevronRight size={15}/></Link></div>
             {low.length ? <ul className="list">{low.slice(0, 5).map(product => <li className="row" key={product.id}><div className="row-main"><b>{product.name}</b><small className="mono">{product.sku}</small></div><div className="row-end"><strong className="num">{formatPallets(stock(product.sku))}</strong>de {product.minimum}</div></li>)}</ul>
-              : <Link className="row" href="/inventario?vista=3d"><span className="row-icon"><Rotate3d size={17}/></span><span className="row-main"><b>Ver la nave en 3D</b><small>{formatPallets(totalStock)} palets colocados sobre el plano</small></span><ChevronRight size={16} color="var(--ink-3)"/></Link>}
+              : <Link className="row" href="/inventario"><span className="row-icon"><Boxes size={17}/></span><span className="row-main"><b>Ver stock por modelo</b><small>Planchas, cajas y cantidades disponibles</small></span><ChevronRight size={16} color="var(--ink-3)"/></Link>}
           </section>
         </div>
         <section className="group" style={{ marginTop: 20 }}>
@@ -312,6 +312,7 @@ function UsersPanel({ user }: { user: PublicUser }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [removing, setRemoving] = useState<ManagedUser | null>(null);
   const [form, setForm] = useState({ name: '', username: '', password: '', role: 'encargado' });
   const [loaded, setLoaded] = useState(false);
@@ -342,23 +343,31 @@ function UsersPanel({ user }: { user: PublicUser }) {
       <div className="group"><Monitor size={22}/><h3>Pantalla</h3><p>Consulta las instrucciones del turno. No modifica datos.</p></div>
     </div>
     <section className="group">
-      <div className="group-head"><div><h2>Accesos al almacén</h2><p>Desactivar un perfil revoca su acceso y conserva la autoría de lo que hizo.</p></div><button className="btn primary" onClick={() => { setError(''); setForm({ name: '', username: '', password: '', role: 'encargado' }); setOpen(true); }}><Plus size={15}/> Añadir perfil</button></div>
-      {error && !open && !removing && <div className="pad"><div className="callout error" role="alert">{error}</div></div>}
+      <div className="group-head"><div><h2>Accesos al almacén</h2><p>Edita perfiles, cambia permisos o restablece contraseñas. Desactivar un acceso conserva la autoría de sus operaciones.</p></div><button className="btn primary" onClick={() => { setError(''); setForm({ name: '', username: '', password: '', role: 'encargado' }); setOpen(true); }}><Plus size={15}/> Añadir perfil</button></div>
+      {error && !open && !editing && !removing && <div className="pad"><div className="callout error" role="alert">{error}</div></div>}
       {!loaded ? <p className="quiet">Cargando perfiles…</p> : <div className="list">{users.map(account => <div className="row with-icon" key={account.id}>
         <span className="avatar">{account.name.slice(0, 1).toUpperCase()}</span>
         <div className="row-main"><b>{account.name}</b><small>{account.username}, {roleName[account.role] ?? account.role}</small></div>
-        <div className="row-end"><span className={'pill ' + (account.active ? 'green' : '')}>{account.active ? 'Activo' : 'Desactivado'}</span>{account.bootstrap ? <span>Cuenta principal</span> : account.id === user.id ? <span>Tu cuenta</span> : account.active && <button className="btn plain" style={{ color: 'var(--red)' }} onClick={() => { setError(''); setRemoving(account); }}>Desactivar</button>}</div>
+        <div className="row-end"><span className={'pill ' + (account.active ? 'green' : '')}>{account.active ? 'Activo' : 'Desactivado'}</span>{account.bootstrap ? <span>Cuenta principal</span> : account.id === user.id ? <Link href="/ajustes" className="btn secondary">Mi perfil</Link> : account.active && <><button className="btn secondary" onClick={() => { setError(''); setEditing(account); setForm({ name: account.name, username: account.username, role: account.role, password: '' }); }}>Editar</button><button className="btn plain" style={{ color: 'var(--red)' }} onClick={() => { setError(''); setRemoving(account); }}>Desactivar</button></>}</div>
       </div>)}</div>}
     </section>
     {open && <Modal title="Añadir perfil" description="Un acceso individual, o uno de consulta para el dispositivo de la pantalla." onClose={() => { if (!busy) setOpen(false); }}><form onSubmit={async event => { event.preventDefault(); if (await send({ type: 'create', ...form })) { setOpen(false); setForm({ name: '', username: '', password: '', role: 'encargado' }); } }}>
       <InputField label="Nombre"><input required maxLength={100} autoComplete="off" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })}/></InputField>
       <InputField label="Usuario"><input required maxLength={64} autoComplete="off" autoCapitalize="none" value={form.username} onChange={event => setForm({ ...form, username: event.target.value })}/></InputField>
       <InputField label="Perfil"><select value={form.role} onChange={event => setForm({ ...form, role: event.target.value })}><option value="encargado">Encargado</option><option value="administrador">Administrador</option><option value="pantalla">Pantalla de solo lectura</option></select></InputField>
-      <InputField label="Contraseña (mínimo 12 caracteres)"><input required minLength={12} maxLength={256} type="password" autoComplete="new-password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })}/></InputField>
+      <InputField label="Contraseña (mínimo 6 caracteres)"><input required minLength={6} maxLength={256} type="password" autoComplete="new-password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })}/></InputField>
       {error && <div className="callout error form-error" role="alert">{error}</div>}
       <div className="dialog-actions"><button type="button" className="btn secondary" onClick={() => setOpen(false)} disabled={busy}>Volver</button><button className="btn primary" disabled={busy}>{busy ? 'Creando…' : 'Crear perfil'}</button></div>
+    </form></Modal>}
+    {editing && <Modal title="Editar perfil" description={`Gestiona el acceso de ${editing.username}.`} onClose={() => { if (!busy) setEditing(null); }}><form onSubmit={async event => { event.preventDefault(); if (await send({ type: 'update', id: editing.id, name: form.name, role: form.role, ...(form.password ? { password: form.password } : {}) })) { setEditing(null); setForm({ name: '', username: '', password: '', role: 'encargado' }); } }}>
+      <InputField label="Nombre"><input required maxLength={100} autoComplete="off" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })}/></InputField>
+      <InputField label="Usuario de acceso"><input readOnly autoComplete="off" value={form.username}/></InputField>
+      <InputField label="Perfil"><select value={form.role} onChange={event => setForm({ ...form, role: event.target.value })}><option value="encargado">Encargado</option><option value="administrador">Administrador</option><option value="pantalla">Pantalla de solo lectura</option></select></InputField>
+      <InputField label="Nueva contraseña (opcional)"><input minLength={6} maxLength={256} type="password" autoComplete="new-password" placeholder="Dejar vacía para mantener la actual" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })}/></InputField>
+      <p className="form-note">La nueva contraseña debe tener al menos 6 caracteres. Al cambiar los permisos o la contraseña, la persona tendrá que volver a entrar.</p>
+      {error && <div className="callout error form-error" role="alert">{error}</div>}
+      <div className="dialog-actions"><button type="button" className="btn secondary" onClick={() => setEditing(null)} disabled={busy}>Cancelar</button><button className="btn primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar perfil'}</button></div>
     </form></Modal>}
     {removing && <Modal title="Desactivar acceso" description="La persona o pantalla pierde el acceso, también si tenía una sesión abierta." onClose={() => { if (!busy) setRemoving(null); }}><p className="dialog-copy">Se desactivará el perfil de <b>{removing.name}</b>. Sus órdenes y operaciones se conservan.</p>{error && <div className="callout error form-error" role="alert">{error}</div>}<div className="dialog-actions"><button className="btn secondary" onClick={() => setRemoving(null)} disabled={busy}>Volver</button><button className="btn danger" disabled={busy} onClick={async () => { if (await send({ type: 'delete', id: removing.id })) setRemoving(null); }}>{busy ? 'Desactivando…' : 'Desactivar perfil'}</button></div></Modal>}
   </>;
 }
-
