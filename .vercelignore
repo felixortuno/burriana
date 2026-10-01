@@ -1,0 +1,11 @@
+# Local credentials, agent configuration, audit output and development state.
+.env*
+.agents
+.claude
+.codex
+.sites-runtime
+.wrangler
+outputs
+work
+*.tsbuildinfo
+*.pem

@@ -2,6 +2,8 @@ import postgres from 'postgres';
 import {
   createPostgresWarehouseStore,
   WAREHOUSE_INIT_LOCK_SQL,
+  WAREHOUSE_REVOKE_SQL,
+  WAREHOUSE_RLS_SQL,
   WAREHOUSE_SCHEMA_SQL,
 } from './postgres-warehouse.ts';
 import type { WarehouseStore } from '../lib/server/warehouse-api.ts';
@@ -19,7 +21,7 @@ export function getPostgresWarehouseStore(): WarehouseStore {
 
   const sql = postgres(connectionString, {
     // Supabase's pooler runs in transaction mode, which cannot reuse prepared
-    // statements, and each serverless instance only ever serves one request.
+    // statements. Keep a small connection pool for each serverless instance.
     prepare: false,
     max: 1,
     idle_timeout: 20,
@@ -33,10 +35,13 @@ export function getPostgresWarehouseStore(): WarehouseStore {
   store = createPostgresWarehouseStore({
     async initialize() {
       // The advisory lock is transaction scoped, so it must share the transaction
-      // that creates the table.
+      // that creates and protects the table. Reads and writes must wait until
+      // every statement succeeds, including when the table already exists.
       await sql.begin(async (tx) => {
         await tx.unsafe(WAREHOUSE_INIT_LOCK_SQL);
         await tx.unsafe(WAREHOUSE_SCHEMA_SQL);
+        await tx.unsafe(WAREHOUSE_RLS_SQL);
+        await tx.unsafe(WAREHOUSE_REVOKE_SQL);
       });
     },
     async query(query, params) {

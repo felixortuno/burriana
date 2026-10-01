@@ -26,7 +26,7 @@ Aplicación privada de gestión del almacén para el ordenador de oficina.
 
 La versión publicada necesita conexión a Internet. Los datos se guardan en la base de datos de la aplicación, no en el navegador ni únicamente en el ordenador. El acceso es privado mediante una pantalla de entrada en `/login`: define `WAREHOUSE_ADMIN_USER` y `WAREHOUSE_ADMIN_PASSWORD`. Sin esas variables la aplicación responde 503 y no expone nada. La sesión se guarda en una cookie firmada, `HttpOnly` y `SameSite=Lax`, que dura un turno de ocho horas; la clave de firma se deriva de la contraseña, de modo que cambiarla cierra todas las sesiones abiertas. No hay roles de operario: los nombres escritos en los formularios sirven para atribuir operaciones dentro del uso de oficina.
 
-El estado se guarda como un documento JSON en Postgres (Supabase) con revisión optimista y actualización atómica. El diseño está pensado para un almacén pequeño con uso desde oficina. Un conflicto entre pestañas se rechaza y recarga los datos, manteniendo el formulario. Un cambio de stock y su movimiento se guardan juntos. No hay borrado de movimientos desde la interfaz.
+El estado se guarda como un documento JSON en Postgres (Supabase) con revisión optimista y actualización atómica. La tabla `public.warehouse` tiene RLS activada y no concede acceso a los roles públicos del Data API; el servidor accede con su conexión privada. El diseño está pensado para un almacén pequeño con uso desde oficina. Un conflicto entre pestañas se rechaza y recarga los datos, manteniendo el formulario. Un cambio de stock y su movimiento se guardan juntos. No hay borrado de movimientos desde la interfaz.
 
 Los controles del sistema recogen las comprobaciones del equipo; la capacidad de las ubicaciones y la autorización física de apilado se deben establecer con los responsables del almacén.
 
@@ -39,7 +39,7 @@ Node 22.13 o superior. `npm ci`, `npm run dev`.
 - `npx tsc --noEmit`: comprobación de tipos.
 - `npm test`: reglas de inventario, atomicidad, cierre y control de acceso.
 
-La tabla `warehouse` se crea sola en el primer arranque, dentro de una transacción con un bloqueo de aviso, de modo que varias instancias simultáneas no compitan. No hay migraciones que aplicar a mano.
+La tabla `public.warehouse` se crea sola en el primer arranque, dentro de una transacción con un bloqueo de aviso, de modo que varias instancias simultáneas no compitan. La inicialización también activa RLS y revoca los permisos de `anon`, `authenticated` y `PUBLIC` sobre una tabla existente, sin cambiar datos ni revisión. No hay migraciones que aplicar a mano. Consulta [la protección y su verificación](db/security.md) y [la lista priorizada de trabajo](TODO_APP.md).
 
 Para cargar una copia de seguridad en la base de datos:
 
