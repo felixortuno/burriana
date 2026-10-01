@@ -525,6 +525,10 @@ a.row { color: inherit; text-decoration: none; }
   .group-head, .group-tools { padding-left: 16px; padding-right: 16px; }
   .row { padding-left: 16px; padding-right: 16px; }
   .row + .row::before { left: 16px; }
+  .quiet, .pad, .history { padding-left: 16px; padding-right: 16px; }
+  .task, .step { padding-left: 16px; padding-right: 16px; }
+  .task + .task, .step + .step { margin-left: 16px; padding-left: 0; }
+  .group-foot { padding-left: 16px; padding-right: 16px; }
   .table th:first-child, .table td:first-child { padding-left: 16px; }
 }
 @media (max-width: 520px) {

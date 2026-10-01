@@ -26,6 +26,7 @@ const dateTime = (date: string) => new Intl.DateTimeFormat('es-ES', { dateStyle:
 const longDate = (day: string) => new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Madrid' }).format(new Date(day + 'T12:00:00Z'));
 const kindInfo = (kind: WorkOrderKind) => kinds.find(item => item.value === kind)!;
 const isOpen = (order: WorkOrder) => !['completada', 'cancelada'].includes(order.status);
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const scheduleText = (order: WorkOrder) => `${order.scheduledDate.split('-').reverse().join('/')}, ${order.scheduledTime || 'sin hora fija'}`;
 
 export default function Management({ section, user }: { section: 'dashboard' | 'operaciones' | 'usuarios'; user: PublicUser }) {
@@ -103,10 +104,10 @@ export default function Management({ section, user }: { section: 'dashboard' | '
       {data.shift.announcement && <div className="callout blue announcement"><div><b>Aviso publicado.</b> {data.shift.announcement}</div></div>}
       {section === 'dashboard' ? <>
         <div className="summary">
-          <div className="figure"><small>Órdenes pendientes</small><strong>{active.length}</strong><span>{active.filter(order => order.kind === 'viaje').length} viajes de producción</span></div>
-          <div className="figure"><small>Camiones</small><strong>{trucks.length}</strong><span>{trucks.filter(order => order.kind === 'carga').length} cargas y {trucks.filter(order => order.kind === 'descarga').length} descargas</span></div>
-          <div className="figure"><small>Completadas hoy</small><strong>{completedToday.length}</strong><span>{completedToday.filter(order => order.kind === 'viaje').length} viajes terminados</span></div>
-          <div className="figure"><small>En stock</small><strong>{formatPallets(totalStock)}<span>palets</span></strong><span>{low.length ? `${low.length} referencias bajo mínimo` : `${data.products.length} referencias`}</span></div>
+          <div className="figure"><small>Órdenes pendientes</small><strong>{active.length}</strong><span>{count(active.filter(order => order.kind === 'viaje').length, 'viaje de producción', 'viajes de producción')}</span></div>
+          <div className="figure"><small>Camiones</small><strong>{trucks.length}</strong><span>{count(trucks.filter(order => order.kind === 'carga').length, 'carga', 'cargas')} y {count(trucks.filter(order => order.kind === 'descarga').length, 'descarga', 'descargas')}</span></div>
+          <div className="figure"><small>Completadas hoy</small><strong>{completedToday.length}</strong><span>{count(completedToday.filter(order => order.kind === 'viaje').length, 'viaje terminado', 'viajes terminados')}</span></div>
+          <div className="figure"><small>En stock</small><strong>{formatPallets(totalStock)}<span>palets</span></strong><span>{low.length ? `${count(low.length, 'referencia', 'referencias')} bajo mínimo` : count(data.products.length, 'referencia', 'referencias')}</span></div>
         </div>
         <div className="grid-2" style={{ marginTop: 20 }}>
           <section className="group">{current ? <div className="now">
@@ -146,7 +147,7 @@ export default function Management({ section, user }: { section: 'dashboard' | '
           <div className="group-tools" style={{ paddingTop: 16 }}>
             <label className="search-field"><Search size={15}/><input aria-label="Buscar órdenes" placeholder="Buscar orden, referencia o matrícula" value={search} onChange={event => setSearch(event.target.value)}/></label>
             <select className="select-sm" aria-label="Mostrar" value={filter} onChange={event => setFilter(event.target.value)}><option value="activas">Activas</option><option value="hoy">Programadas para hoy</option><option value="en_curso">En curso</option><option value="pausada">En pausa</option><option value="completada">Completadas</option><option value="cancelada">Canceladas</option><option value="todas">Todo el historial</option></select>
-            <span className="count">{filtered.length} órdenes</span>
+            <span className="count">{count(filtered.length, 'orden', 'órdenes')}</span>
           </div>
           {filtered.length ? <div>{filtered.map(order => <OrderRow key={order.id} order={order} today={today} busy={busy || !!error} onEdit={() => setEditor(order)} onDetail={() => setSelected(order)} onStatus={status => changeStatus(order, status)}/>)}</div> : <Empty title={all.length ? 'No hay órdenes en esta selección' : 'Organiza el primer turno'} text={all.length ? 'Cambia los filtros o crea una orden nueva.' : 'Los viajes de producción van primero. Programa también pedidos, camiones y cuidados del almacén.'}><button className="btn primary" onClick={() => newOrder()}><Plus size={15}/> Nueva orden</button></Empty>}
         </section>
