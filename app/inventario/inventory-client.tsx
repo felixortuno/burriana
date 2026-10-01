@@ -10,9 +10,10 @@ import { madridDay, checklist, type State, type Product, type Location, type Mov
 import { useWarehouse } from '@/hooks/use-warehouse';
 import type { PublicUser } from '@/lib/identity';
 import { warehouseAreas, areaName, isWarehouseArea } from '@/lib/areas';
-import { formatPallets, locationsToReview, modelKey, modelName, modelSummary, productKind, stockBySku } from '@/lib/warehouse-insights';
+import { formatPallets, locationsToReview, modelKey, modelName, modelSummary, PLANCHA_MINIMUM, productKind, stockBySku } from '@/lib/warehouse-insights';
 import { layoutWarehouse } from '@/lib/warehouse-layout';
 import AppShell, { inventoryViews, type InventoryView } from '../components/app-shell';
+import { useAppReady } from '../components/app-loader';
 import type { CameraPreset, ColorMode } from '../components/warehouse-3d';
 import WarehousePlan from '../warehouse-plan';
 import ReferencePhoto from '../reference-photo';
@@ -51,20 +52,21 @@ function SearchField({ value, onChange, placeholder }: { value: string; onChange
 function Empty({ title, detail, children }: { title: string; detail: string; children?: ReactNode }) { return <div className="empty"><Boxes size={30} strokeWidth={1.5}/><h3>{title}</h3><p>{detail}</p>{children}</div>; }
 function download(name: string, content: string, type: string) { const url = URL.createObjectURL(new Blob([content], { type })); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 function csv(rows: unknown[][]) { return '﻿' + rows.map(r => r.map(v => { let s = String(v ?? ''); if (/^[=+@\-\t\r]/.test(s)) s = "'" + s; return '"' + s.replaceAll('"', '""') + '"'; }).join(';')).join('\r\n'); }
-const emptyForm = () => ({ id: '', sku: '', name: '', family: 'Planchas', minimum: 0, code: '', zone: '', area: '', capacity: 1, title: '', owner: '', due: '', done: false, kind: 'entrada', qty: 1, location: '', destination: '', operator: '', document: '', notes: '', stacked: false, safe: false, labelled: false, verified: false });
+const emptyForm = () => ({ id: '', sku: '', name: '', family: 'Planchas', minimum: PLANCHA_MINIMUM, code: '', zone: '', area: '', capacity: 1, title: '', owner: '', due: '', done: false, kind: 'entrada', qty: 1, location: '', destination: '', operator: '', document: '', notes: '', stacked: false, safe: false, labelled: false, verified: false });
 type InventoryForm = ReturnType<typeof emptyForm>;
 
 export default function Inventory({ user }: { user: PublicUser }) {
   const { data, revision, loading, error, busy, updatedAt, refresh, save: saveWarehouse } = useWarehouse();
+  useAppReady(!loading);
   const params = useSearchParams();
   const requested = params.get('vista') as InventoryView | null;
   const view: InventoryView = requested && views.includes(requested) ? requested : 'resumen';
   const selectedLocation = params.get('ubicacion');
   const [search, setSearch] = useState(() => params.get('q') ?? '');
-  const [filter, setFilter] = useState('todos');
+  const [filter, setFilter] = useState(() => params.get('filtro') ?? 'todos');
   const [areaFilter, setAreaFilter] = useState('todos');
   const [shownView, setShownView] = useState(view);
-  if (shownView !== view) { setShownView(view); setSearch(params.get('q') ?? ''); setFilter('todos'); setAreaFilter('todos'); }
+  if (shownView !== view) { setShownView(view); setSearch(params.get('q') ?? ''); setFilter(params.get('filtro') ?? 'todos'); setAreaFilter('todos'); }
   const [grouping, setGrouping] = useState<'referencia' | 'modelo'>('referencia');
   const [colorMode, setColorMode] = useState<ColorMode>('tipo');
   const [preset, setPreset] = useState<CameraPreset>('perspectiva');
@@ -88,6 +90,14 @@ export default function Inventory({ user }: { user: PublicUser }) {
   }
   async function save(action: Record<string, unknown>) { setFormError(''); try { if (!await saveWarehouse(action)) return false; toast.success('Guardado'); return true; } catch (e) { const msg = e instanceof Error ? e.message : 'No se ha podido guardar.'; setFormError(msg); toast.error(msg); return false; } }
   function open(type: string, record: Partial<InventoryForm> = {}) { setFormError(''); setModal(type); setForm({ ...emptyForm(), operator: user.name, area: isWarehouseArea(areaFilter) ? areaFilter : '', ...record }); }
+  // A new plancha starts at the warehouse minimum; switching to cajas drops that default.
+  function changeFamily(family: string) {
+    setForm(prev => {
+      const untouched = prev.minimum === 0 || prev.minimum === PLANCHA_MINIMUM;
+      if (prev.id || !untouched) return { ...prev, family };
+      return { ...prev, family, minimum: productKind({ sku: prev.sku, family }) === 'plancha' ? PLANCHA_MINIMUM : 0 };
+    });
+  }
   const f = <K extends keyof InventoryForm>(key: K, value: InventoryForm[K]) => setForm(prev => ({ ...prev, ...(['kind', 'sku', 'qty', 'location', 'destination', 'document', 'stacked'].includes(key) ? { safe: false, labelled: false, verified: false } : {}), [key]: value }));
   async function submit(e: FormEvent) { e.preventDefault(); if (await save({ ...form, id: form.id || undefined, type: modal })) setModal(''); }
 
@@ -259,7 +269,7 @@ export default function Inventory({ user }: { user: PublicUser }) {
     <footer className="page-foot"><span>Burriana · GTR Solutions</span><button className="btn plain" onClick={() => download('burriana-' + today + '.json', JSON.stringify({ schemaVersion: 2, exportedAt: new Date().toISOString(), revision, ...data }, null, 2), 'application/json')} disabled={disabled}><Download size={13}/> Descargar copia de datos</button></footer>
 
     <Dialog open={!!modal} onOpenChange={o => { if (!busy && !o) setModal(''); }}><DialogContent className="sheet"><DialogHeader><DialogTitle>{modal === 'product' ? (form.id ? 'Editar referencia' : 'Nueva referencia') : modal === 'location' ? (form.id ? 'Editar ubicación' : 'Nueva ubicación') : modal === 'task' ? (form.id ? 'Editar tarea' : 'Nueva tarea') : 'Registrar movimiento'}</DialogTitle><DialogDescription>{modal === 'movement' ? 'El stock se actualiza al guardar. Admite cuartos de palet.' : modal === 'location' ? 'Un bloque real del suelo y su capacidad validada en palets.' : 'Completa los datos y guarda los cambios.'}</DialogDescription></DialogHeader><form onSubmit={submit}>
-      {modal === 'product' && <>{!form.id && <ReferencePhoto disabled={busy} onRead={r => { if (r.sku) f('sku', r.sku.toUpperCase()); if (r.name) f('name', r.name); if (r.family) f('family', r.family); }}/>}<Field label="Código único (SKU)"><input required readOnly={!!form.id} maxLength={180} value={form.sku} onChange={e => f('sku', e.target.value.toUpperCase())} placeholder="BIEDRONKA-40X30X23-CJ"/></Field><Field label="Nombre"><input required maxLength={180} value={form.name} onChange={e => f('name', e.target.value)} placeholder="Modelo, medida y tipo"/></Field><div className="form-grid"><Field label="Familia"><input required maxLength={180} list="families" value={form.family} onChange={e => f('family', e.target.value)}/><datalist id="families"><option value="Planchas"/><option value="Cajas"/></datalist></Field><Field label="Stock mínimo (palets)"><input required type="number" min="0" max="1000000" step="1" value={form.minimum} onChange={e => f('minimum', Number(e.target.value))}/></Field></div><p className="form-note">El stock se añade con una entrada. El SKU no cambia para conservar el historial.</p></>}
+      {modal === 'product' && <>{!form.id && <ReferencePhoto disabled={busy} onRead={r => { if (r.sku) f('sku', r.sku.toUpperCase()); if (r.name) f('name', r.name); if (r.family) changeFamily(r.family); }}/>}<Field label="Código único (SKU)"><input required readOnly={!!form.id} maxLength={180} value={form.sku} onChange={e => f('sku', e.target.value.toUpperCase())} placeholder="BIEDRONKA-40X30X23-CJ"/></Field><Field label="Nombre"><input required maxLength={180} value={form.name} onChange={e => f('name', e.target.value)} placeholder="Modelo, medida y tipo"/></Field><div className="form-grid"><Field label="Familia"><input required maxLength={180} list="families" value={form.family} onChange={e => changeFamily(e.target.value)}/><datalist id="families"><option value="Planchas"/><option value="Cajas"/></datalist></Field><Field label="Stock mínimo (palets)"><input required type="number" min="0" max="1000000" step="1" value={form.minimum} onChange={e => f('minimum', Number(e.target.value))}/></Field></div><p className="form-note">El stock se añade con una entrada. El SKU no cambia para conservar el historial.</p></>}
       {modal === 'location' && <><Choice label="Zona del plano" value={form.area ?? ''} onChange={v => f('area', v)} options={warehouseAreas.map(a => ({ value: a.value, label: a.label }))}/><div className="form-grid"><Field label="Código de bloque"><input required readOnly={!!form.id} maxLength={180} value={form.code} onChange={e => f('code', e.target.value.toUpperCase())} placeholder={form.area === 'montaje' ? 'CAJ-01' : 'CAR-01'}/></Field><Field label="Pasillo o sector"><input required maxLength={180} value={form.zone} onChange={e => f('zone', e.target.value)} placeholder="Pasillo A"/></Field></div><Field label="Capacidad validada (palets)"><input required type="number" min="1" max="1000000" step="1" value={form.capacity} onChange={e => f('capacity', Number(e.target.value))}/></Field><p className="form-note">Incluye la segunda altura solo si está autorizada para esa carga. No ocupes pasillos, accesos ni puestos de maquinaria.</p>{form.id && <div className="callout"><div><b>{formatPallets(form.qty)} palets almacenados</b><br/>{form.sku ? productBySku.get(form.sku)?.name ?? form.sku : 'Ubicación libre'}</div></div>}</>}
       {modal === 'task' && <><Field label="Tarea"><input required maxLength={180} value={form.title} onChange={e => f('title', e.target.value)}/></Field><Field label="Zona"><input required maxLength={180} value={form.zone} onChange={e => f('zone', e.target.value)}/></Field><div className="form-grid"><Field label="Responsable"><input required maxLength={180} value={form.owner} onChange={e => f('owner', e.target.value)} placeholder="Nombre del operario"/></Field><Field label="Fecha objetivo (opcional)"><input type="date" value={form.due} onChange={e => f('due', e.target.value)}/></Field></div><Tick checked={form.done} onChange={v => f('done', v)}>Tarea completada</Tick></>}
       {modal === 'movement' && <>{(!data.products.length || !data.locations.length) ? <div className="callout"><div>Necesitas al menos una referencia y una ubicación para registrar movimientos.</div><button type="button" className="btn secondary" onClick={() => { setModal(''); go(!data.products.length ? 'referencias' : 'ubicaciones'); }}>Configurar</button></div> : <>

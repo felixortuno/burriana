@@ -1,6 +1,10 @@
-import type { Product, State } from './warehouse.ts';
+import { isWarehouseArea } from './areas.ts';
+import type { Location, Product, State } from './warehouse.ts';
 
 export type ProductKind = 'plancha' | 'caja' | 'otro';
+
+/** Warehouse rule since 01/10/2026: keep at least 26 pallets of every plancha. */
+export const PLANCHA_MINIMUM = 26;
 
 /** Planchas and cajas of one model share the code; only the -PL / -CJ suffix differs. */
 export function modelKey(sku: string) {
@@ -62,4 +66,35 @@ const quarter = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 });
 /** Pallets are counted in quarters: 22,5 or 6,75. */
 export function formatPallets(value: number) {
   return quarter.format(value);
+}
+
+type Stock = Pick<State, 'products' | 'locations'>;
+
+/** The caja of the same model as a plancha, when the catalogue has one. */
+export function pairedCaja(state: Pick<State, 'products'>, planchaSku: string) {
+  const key = modelKey(planchaSku);
+  return state.products.find(product => product.sku !== planchaSku && modelKey(product.sku) === key && productKind(product) === 'caja');
+}
+
+/** Where to take a plancha from: its stocked blocks, fullest first; empty cardboard blocks if it has none. */
+export function planchaSources(state: Pick<State, 'locations'>, sku: string): Location[] {
+  const stocked = state.locations.filter(location => location.sku === sku && location.qty > 0).sort((a, b) => b.qty - a.qty);
+  if (stocked.length) return stocked;
+  return state.locations.filter(location => location.area === 'carton' && !location.qty).sort((a, b) => a.code.localeCompare(b.code, 'es', { numeric: true }));
+}
+
+/** Where produced cajas can go: blocks already holding them, then free assembly blocks, most room first. */
+export function cajaDestinations(state: Pick<State, 'locations'>, sku: string, exclude = ''): Location[] {
+  const rank = (location: Location) => [location.sku === sku && location.qty > 0 ? 0 : 1, location.area === 'montaje' ? 0 : 1, -(location.capacity - location.qty)];
+  return state.locations
+    .filter(location => isWarehouseArea(location.area) && location.code !== exclude && (!location.qty || location.sku === sku))
+    .sort((a, b) => { const x = rank(a), y = rank(b); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || a.code.localeCompare(b.code, 'es', { numeric: true }); });
+}
+
+/** Choosing a plancha fills in its caja and both blocks; quantities are left to the person. */
+export function linkPlancha(state: Stock, planchaSku: string) {
+  const inputLocation = planchaSources(state, planchaSku)[0]?.code ?? '';
+  const outputSku = pairedCaja(state, planchaSku)?.sku ?? '';
+  const outputLocation = outputSku ? cajaDestinations(state, outputSku, inputLocation)[0]?.code ?? '' : '';
+  return { inputSku: planchaSku, inputLocation, outputSku, outputLocation };
 }

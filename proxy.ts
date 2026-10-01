@@ -33,5 +33,6 @@ export async function proxy(request: Request) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static/|_next/image(?:/|$)|favicon\\.(?:ico|svg)$).*)"],
+  // Brand icons and the manifest must load on the sign-in page too.
+  matcher: ["/((?!_next/static/|_next/image(?:/|$)|favicon\\.(?:ico|svg)$|brand/|manifest\\.webmanifest$).*)"],
 };

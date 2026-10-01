@@ -3,12 +3,13 @@ import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'r
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Command as CommandPrimitive } from 'cmdk';
-import { ArrowLeftRight, BookOpen, Box, Boxes, ClipboardCheck, ClipboardList, Home, ListChecks, LogOut, Map as MapIcon, Menu, Monitor, RefreshCw, Rotate3d, Search, Tags, Users, X, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Boxes, ClipboardCheck, ClipboardList, Home, ListChecks, LogOut, Map as MapIcon, Menu, Monitor, RefreshCw, Rotate3d, Search, Tags, Users, X, type LucideIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import type { PublicUser } from '@/lib/identity';
 import type { State } from '@/lib/warehouse';
 import { formatPallets, stockBySku } from '@/lib/warehouse-insights';
 import { returnToLogin } from '@/lib/client-session';
+import Logo from './logo';
 
 export type InventoryView = 'resumen' | '3d' | 'referencias' | 'ubicaciones' | 'movimientos' | '5s' | 'cierre' | 'protocolo';
 export type NavKey = 'inicio' | 'operaciones' | 'usuarios' | `inventario:${InventoryView}`;
@@ -91,7 +92,7 @@ export default function AppShell({ user, active, data, sync, actions = [], child
   return <div className={'shell' + (menu ? ' menu-open' : '')}>
     <aside className="sidebar" aria-label="Navegación">
       <div className="sidebar-head">
-        <Link href="/" className="wordmark" onClick={() => setMenu(false)}><span className="glyph" aria-hidden="true"><Box size={17} strokeWidth={2.2}/></span>Burriana</Link>
+        <Link href="/" className="wordmark" onClick={() => setMenu(false)}><span className="glyph"><Logo variant="lima" size="62%" data-logo-target=""/></span>Burriana</Link>
         <button className="icon-btn sidebar-close" aria-label="Cerrar menú" onClick={() => setMenu(false)}><X size={18}/></button>
       </div>
       <button className="sidebar-search" onClick={() => { setMenu(false); setPalette(true); }}><Search size={15}/><span>Buscar</span><kbd>⌘K</kbd></button>

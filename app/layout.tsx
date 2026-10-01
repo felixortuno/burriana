@@ -1,20 +1,28 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Lato, Poppins } from "next/font/google";
+import AppLoader from "./components/app-loader";
 import "./globals.css";
 
 // Apple devices render San Francisco from the system stack; Inter covers the rest.
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+// Brand faces, only for the company names on the loading cube.
+const poppins = Poppins({ subsets: ["latin"], weight: "500", variable: "--font-poppins", display: "swap" });
+const lato = Lato({ subsets: ["latin"], weight: "300", variable: "--font-lato", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Burriana · GTR Solutions",
+  title: "Burriana · Grupo Trimodos",
   description: "Organización del almacén, viajes de producción, pedidos, camiones e inventario.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32 48x48" },
+      { url: "/brand/icono-app-redondeado.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/brand/icono-app-180.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
 export const viewport: Viewport = {
+  // The app chrome is light; the installed app uses the brand black from the manifest.
   themeColor: "#f5f5f7",
 };
 
@@ -24,8 +32,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={inter.variable}>
-      <body>{children}</body>
+    <html lang="es" className={`${inter.variable} ${poppins.variable} ${lato.variable}`}>
+      <body><AppLoader>{children}</AppLoader></body>
     </html>
   );
 }

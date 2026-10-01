@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import {
   ArrowDownLeft, ArrowUpRight, ArrowRight, Check, Clock3, Coffee,
   Factory, ListOrdered, LogOut, Maximize, Megaphone, Package,
-  Radio, Sparkles, Truck, Warehouse, Wrench, WifiOff,
+  Radio, Sparkles, Truck, Wrench, WifiOff,
 } from 'lucide-react';
+import Logo from '../components/logo';
+import { useAppReady } from '../components/app-loader';
 import { sortOperationalOrders, type ShiftSettings, type WorkOrder } from '@/lib/operations';
 
 const POLL_MS = 10_000;
@@ -99,6 +101,7 @@ function OrderRow({ order, today, time, number }: { order: WorkOrder; today: str
       <div className="wb-order-top"><span className="wb-kind">{kindLabels[order.kind]}</span><OrderStatus order={order} />{order.priority === 'urgente' && <span className="wb-urgent">Urgente</span>}</div>
       <h3>{order.title}</h3>
       {order.kind === 'viaje' && order.production && <div className="wb-production-target"><Package size={15} aria-hidden="true" /><strong>{order.production.outputPallets} palets de cajas</strong><span>{order.production.outputSku}</span></div>}
+      {order.kind === 'viaje' && order.production && <div className="wb-production-source">Planchas: {order.production.inputPallets} palets de <span>{order.production.inputSku}</span> en {order.production.inputLocation}</div>}
       <div className="wb-order-meta">
         {order.reference && <span className="wb-reference">{order.reference}</span>}
         {order.truck && <span><Truck size={16} aria-hidden="true" /> {order.truck}</span>}
@@ -137,6 +140,7 @@ export default function WarehouseBoard() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [exiting, setExiting] = useState(false);
+  useAppReady(snapshot !== null || error !== '');
 
   useEffect(() => {
     let disposed = false;
@@ -259,7 +263,7 @@ export default function WarehouseBoard() {
 
   return <main className="wb-screen">
     <header className="wb-header">
-      <div className="wb-brand"><span className="wb-brand-icon"><Warehouse aria-hidden="true" /></span><div><strong>Burriana<span>GTR Solutions</span></strong><p>Pantalla de trabajo</p></div></div>
+      <div className="wb-brand"><span className="wb-brand-icon"><Logo variant="lima" size="64%" data-logo-target="" /></span><div><strong>Burriana<span>GTR Solutions</span></strong><p>Pantalla de trabajo</p></div></div>
       <div className="wb-header-center"><span className={`wb-connection${stale ? ' wb-connection-bad' : ''}`}>{stale ? <WifiOff size={18} /> : <Radio size={18} />}{stale ? 'Datos sin actualizar' : snapshot ? 'Conectada' : 'Conectando'}</span><span>Solo información · actualiza el encargado</span></div>
       <div className="wb-clock"><time dateTime={currentTimestamp === null ? undefined : new Date(currentTimestamp).toISOString()}>{current.time || '—:—'}</time><span>{todayLabel}</span></div>
     </header>
