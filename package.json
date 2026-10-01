@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ignore-pattern .next",
-    "test": "node --experimental-strip-types tests/warehouse.test.mjs && node --experimental-strip-types tests/access.test.mjs && node --experimental-strip-types tests/postgres-store.test.mjs && node --experimental-strip-types tests/operations.test.mjs && node --experimental-strip-types tests/users.test.mjs && node --experimental-strip-types tests/import-state.test.mjs && node --experimental-strip-types tests/layout.test.mjs && node --experimental-strip-types tests/insights.test.mjs"
+    "test": "node --experimental-strip-types tests/warehouse.test.mjs && node --experimental-strip-types tests/access.test.mjs && node --experimental-strip-types tests/postgres-store.test.mjs && node --experimental-strip-types tests/operations.test.mjs && node --experimental-strip-types tests/users.test.mjs && node --experimental-strip-types tests/import-state.test.mjs && node --experimental-strip-types tests/layout.test.mjs && node --experimental-strip-types tests/insights.test.mjs && node --experimental-strip-types tests/settings.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

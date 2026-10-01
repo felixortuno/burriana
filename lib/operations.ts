@@ -1,3 +1,5 @@
+import { normalizeSettings, type Settings } from './settings.ts';
+
 /** Operational work is separate from inventory: scheduling never changes stock. */
 export const workOrderKinds = ['viaje', 'pedido', 'carga', 'descarga', 'mantenimiento', 'limpieza'] as const;
 export const workOrderStatuses = ['pendiente', 'en_curso', 'pausada', 'completada', 'cancelada'] as const;
@@ -52,7 +54,7 @@ export type ShiftSettings = {
   lunchEnd: string;
   announcement: string;
 };
-export type OperationalState = { workOrders: WorkOrder[]; shift: ShiftSettings };
+export type OperationalState = { workOrders: WorkOrder[]; shift: ShiftSettings; settings: Settings };
 export type OperationalSortMode = 'viajes_primero' | 'fecha_programada';
 
 export function defaultShiftSettings(): ShiftSettings {
@@ -63,6 +65,7 @@ export function defaultShiftSettings(): ShiftSettings {
 export function normalizeOperationalState(state: {
   workOrders?: WorkOrder[];
   shift?: Partial<ShiftSettings>;
+  settings?: unknown;
 }): OperationalState {
   if (state.workOrders !== undefined && !Array.isArray(state.workOrders)) {
     throw new Error('El registro de trabajo guardado no es válido.');
@@ -73,6 +76,7 @@ export function normalizeOperationalState(state: {
   return {
     workOrders: state.workOrders ?? [],
     shift: { ...defaultShiftSettings(), ...state.shift },
+    settings: normalizeSettings(state.settings),
   };
 }
 
@@ -142,13 +146,16 @@ export function isOpenWorkOrder(order: Pick<WorkOrder, 'status'>): boolean {
   return order.status !== 'completada' && order.status !== 'cancelada';
 }
 
-/** Sorts a copy, with explicit urgency overriding the normal production priority. */
-export function sortOperationalOrders(orders: readonly WorkOrder[], mode: OperationalSortMode = 'viajes_primero'): WorkOrder[] {
+/**
+ * Sorts a copy, with explicit urgency overriding the normal priority. The priority
+ * is either a mode or the administrator's order of work kinds.
+ */
+export function sortOperationalOrders(orders: readonly WorkOrder[], mode: OperationalSortMode | readonly WorkOrderKind[] = 'viajes_primero'): WorkOrder[] {
   const rank = (order: WorkOrder) => [
     isOpenWorkOrder(order) ? 0 : 1,
     order.status === 'en_curso' ? 0 : 1,
     order.priority === 'urgente' ? 0 : 1,
-    mode === 'viajes_primero' && order.kind === 'viaje' ? 0 : 1,
+    Array.isArray(mode) ? mode.indexOf(order.kind) : mode === 'viajes_primero' && order.kind === 'viaje' ? 0 : 1,
   ];
   const compareText = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
   return [...orders].sort((a, b) => {

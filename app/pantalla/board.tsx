@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import {
   ArrowDownLeft, ArrowUpRight, ArrowRight, Check, Clock3, Coffee,
   Factory, ListOrdered, LogOut, Maximize, Megaphone, Package,
-  Radio, Sparkles, Truck, Wrench, WifiOff,
+  Radio, Sparkles, Truck, Wrench, WifiOff, CalendarClock,
 } from 'lucide-react';
 import Logo from '../components/logo';
 import { useAppReady } from '../components/app-loader';
-import { sortOperationalOrders, type ShiftSettings, type WorkOrder } from '@/lib/operations';
+import { sortOperationalOrders, type ShiftSettings, type WorkOrder, type WorkOrderKind } from '@/lib/operations';
+import { blocksForDay, priorityOrder, readableOn, type BoardTheme, type ShiftRule } from '@/lib/settings';
 
 const POLL_MS = 10_000;
 const ROTATE_MS = 15_000;
@@ -19,6 +20,8 @@ type Snapshot = {
   revision: number;
   workOrders: WorkOrder[];
   shift: ShiftSettings;
+  /** Older servers sent no settings; the display then keeps its defaults. */
+  settings?: { priorities: WorkOrderKind[] | null; rules: ShiftRule[]; board: BoardTheme; logo?: { stroke: string; tile: string } };
   serverTime: string;
 };
 
@@ -241,7 +244,7 @@ export default function WarehouseBoard() {
   const seconds = Math.ceil((ROTATE_MS - elapsed % ROTATE_MS) / 1_000);
   const stale = !!error || (now !== null && lastSuccess !== null && now - lastSuccess >= STALE_MS);
   const allOrders = snapshot?.workOrders ?? [];
-  const active = sortOperationalOrders(allOrders.filter(order => order.status !== 'completada' && order.status !== 'cancelada'));
+  const active = sortOperationalOrders(allOrders.filter(order => order.status !== 'completada' && order.status !== 'cancelada'), priorityOrder(snapshot?.settings ?? { priorities: null }));
   const running = active.filter(order => order.status === 'en_curso');
   const production = active.filter(order => order.kind === 'viaje' || order.kind === 'pedido');
   const dock = active.filter(order => order.kind === 'carga' || order.kind === 'descarga');
@@ -259,11 +262,20 @@ export default function WarehouseBoard() {
   const announcementPages = instructionPages(shift?.announcement ?? '');
   const lunch = !!shift && withinTime(current.time, shift.lunchStart, shift.lunchEnd);
   const shiftActive = !!shift && withinTime(current.time, shift.startTime, shift.endTime);
+  const blocks = shift && current.day ? blocksForDay(snapshot?.settings?.rules ?? [], current.day, shift) : [];
+  const blockNow = blocks.find(block => withinTime(current.time, block.start, block.end));
+  const blockNext = blocks.find(block => current.time < block.start);
+  const theme = snapshot?.settings?.board;
+  const logo = snapshot?.settings?.logo;
+  const themeStyle = theme ? Object.fromEntries([
+    ['--wb-bg', theme.background], ['--wb-panel', theme.panel], ['--wb-lime', theme.accent], ['--wb-white', theme.text],
+    ['--wb-on-accent', readableOn(theme.accent)], ...(logo ? [['--logo-stroke', logo.stroke], ['--logo-tile', logo.tile]] : []),
+  ]) as React.CSSProperties : undefined;
   const todayLabel = currentTimestamp === null ? 'Conectando con el almacén' : new Intl.DateTimeFormat('es-ES', { timeZone: ZONE, weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(currentTimestamp));
 
-  return <main className="wb-screen">
+  return <main className="wb-screen" style={themeStyle}>
     <header className="wb-header">
-      <div className="wb-brand"><span className="wb-brand-icon"><Logo variant="lima" size="64%" data-logo-target="" /></span><div><strong>Burriana<span>GTR Solutions</span></strong><p>Pantalla de trabajo</p></div></div>
+      <div className="wb-brand"><span className="wb-brand-icon"><Logo variant="tema" size="64%" data-logo-target="" /></span><div><strong>Burriana<span>GTR Solutions</span></strong><p>Pantalla de trabajo</p></div></div>
       <div className="wb-header-center"><span className={`wb-connection${stale ? ' wb-connection-bad' : ''}`}>{stale ? <WifiOff size={18} /> : <Radio size={18} />}{stale ? 'Datos sin actualizar' : snapshot ? 'Conectada' : 'Conectando'}</span><span>Solo información · actualiza el encargado</span></div>
       <div className="wb-clock"><time dateTime={currentTimestamp === null ? undefined : new Date(currentTimestamp).toISOString()}>{current.time || '—:—'}</time><span>{todayLabel}</span></div>
     </header>
@@ -278,6 +290,7 @@ export default function WarehouseBoard() {
     </section>
 
     <div className={`wb-announcement${shift?.announcement ? ' wb-announcement-filled' : ''}`}><Megaphone aria-hidden="true" /><span>Aviso del encargado{announcementPages.length > 1 && ` · ${cycle % announcementPages.length + 1}/${announcementPages.length}`}</span><p>{!snapshot ? 'Esperando información del almacén.' : announcementPages[cycle % announcementPages.length] || 'Sin avisos para el turno.'}</p></div>
+    {(blockNow || blockNext) && <div className={`wb-rule${blockNow ? ' wb-rule-now' : ''}`} role="status"><CalendarClock size={26} aria-hidden="true" /><p>{blockNow ? <><b>Ahora: {blockNow.rule.title}</b>, hasta las {blockNow.end}.</> : <><b>Hoy de {blockNext!.start} a {blockNext!.end}: {blockNext!.rule.title}</b>.</>} {(blockNow ?? blockNext)!.rule.notes && <span>{(blockNow ?? blockNext)!.rule.notes}</span>}</p></div>}
 
     {!snapshot && !error ? <section className="wb-loading" role="status"><Radio /><h1>Preparando la pantalla</h1><p>Consultando los trabajos del almacén…</p></section> : snapshot && <div className="wb-grid">
       <div className="wb-production-column">

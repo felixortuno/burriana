@@ -14,7 +14,9 @@ export async function GET(request: Request) {
       void _events;
       return visible;
     });
-    return Response.json({ revision, workOrders, shift: state.shift, serverTime: new Date().toISOString() }, {
+    // The display also follows the administrator's priority, fixed blocks and colours.
+    const settings = { priorities: state.settings.priorities, rules: state.settings.rules.filter(rule => rule.active), board: state.settings.board, logo: { stroke: state.settings.appearance.logoStroke, tile: state.settings.appearance.logoTile } };
+    return Response.json({ revision, workOrders, shift: state.shift, settings, serverTime: new Date().toISOString() }, {
       headers: { 'Cache-Control': 'private, no-store' },
     });
   } catch {

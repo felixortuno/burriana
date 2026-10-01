@@ -143,6 +143,10 @@ test('shared ordering puts work in progress first, then urgency, then production
   assert.deepEqual(sortOperationalOrders(state.workOrders, 'fecha_programada').map(order => order.title), [
     'Carga en curso', 'Limpieza urgente', 'Normal temprano', 'Viaje normal', 'Cerrado urgente',
   ]);
+  // The administrator's order of kinds replaces «viajes primero»: here pedidos and cleaning come first.
+  assert.deepEqual(sortOperationalOrders(state.workOrders, ['limpieza', 'pedido', 'viaje', 'carga', 'descarga', 'mantenimiento']).map(order => order.title), [
+    'Carga en curso', 'Limpieza urgente', 'Normal temprano', 'Viaje normal', 'Cerrado urgente',
+  ]);
   assert.deepEqual(state.workOrders.map(order => order.id), original);
 });
 

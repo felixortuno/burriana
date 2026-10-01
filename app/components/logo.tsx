@@ -22,7 +22,8 @@ export function useClipId(prefix: string) {
   return prefix + useId().replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
-const colors = { lima: 'var(--tm-lima)', negro: 'var(--tm-negro)', blanco: '#FFFFFF' } as const;
+/** «tema» follows the colour chosen in Ajustes > Apariencia (lima by default). */
+const colors = { lima: 'var(--tm-lima)', negro: 'var(--tm-negro)', blanco: '#FFFFFF', tema: 'var(--logo-stroke, var(--tm-lima))' } as const;
 
 type LogoProps = Omit<SVGProps<SVGSVGElement>, 'children'> & {
   variant?: keyof typeof colors;

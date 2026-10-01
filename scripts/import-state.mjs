@@ -70,6 +70,8 @@ export function validateWarehouseBackup(file) {
       text(extracted.shift[field], `shift.${field}`, ['startTime', 'endTime'].includes(field), field === 'announcement' ? 1000 : 180);
     }
   }
+  // Administrator settings travel with the backup; normalizeState validates them.
+  if (Object.hasOwn(backup, 'settings')) extracted.settings = backup.settings;
   const state = structuredClone(normalizeState(extracted));
   for (const key of COLLECTIONS) unique(state[key], 'id', key);
   unique(state.products, 'sku', 'products', value => value.trim().toUpperCase());
@@ -83,6 +85,7 @@ export function validateWarehouseBackup(file) {
     text(product.name, 'products.name');
     text(product.family, 'products.family');
     integer(product.minimum, 'products.minimum');
+    if (product.boxesPerPallet !== undefined) integer(product.boxesPerPallet, 'products.boxesPerPallet', 1);
   }
   for (const location of state.locations) {
     code(location.code, 'locations.code');
@@ -95,7 +98,7 @@ export function validateWarehouseBackup(file) {
   }
   for (const movement of state.movements) {
     timestamp(movement.date, 'movements.date');
-    oneOf(movement.kind, ['entrada', 'salida', 'traslado', 'consumo', 'produccion'], 'movements.kind');
+    oneOf(movement.kind, ['entrada', 'salida', 'traslado', 'consumo', 'produccion', 'ajuste'], 'movements.kind');
     if (!skus.has(movement.sku) || !locations.has(movement.location)) fail('Un movimiento referencia un SKU o bloque inexistente.');
     quarters(movement.qty, 'movements.qty', 0.25, 1000000);
     text(movement.operator, 'movements.operator');
@@ -216,7 +219,8 @@ export function hasWarehouseData(currentState) {
   const empty = initialState();
   return COLLECTIONS.some(key => key !== 'tasks' && state[key].length > 0)
     || !isDeepStrictEqual(state.tasks, empty.tasks)
-    || !isDeepStrictEqual(state.shift, empty.shift);
+    || !isDeepStrictEqual(state.shift, empty.shift)
+    || !isDeepStrictEqual(state.settings, empty.settings);
 }
 
 const summary = state => COLLECTIONS.map(key => `${state[key].length} ${key}`).join(', ');

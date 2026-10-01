@@ -3,16 +3,17 @@ import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'r
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Command as CommandPrimitive } from 'cmdk';
-import { ArrowLeftRight, BookOpen, Boxes, ClipboardCheck, ClipboardList, Home, ListChecks, LogOut, Map as MapIcon, Menu, Monitor, RefreshCw, Rotate3d, Search, Tags, Users, X, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Boxes, ClipboardCheck, ClipboardList, Home, ListChecks, LogOut, Map as MapIcon, Menu, Monitor, RefreshCw, Rotate3d, Search, Settings2, Tags, Users, X, type LucideIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import type { PublicUser } from '@/lib/identity';
 import type { State } from '@/lib/warehouse';
 import { formatPallets, stockBySku } from '@/lib/warehouse-insights';
 import { returnToLogin } from '@/lib/client-session';
 import Logo from './logo';
+import { readableOn } from '@/lib/settings';
 
 export type InventoryView = 'resumen' | '3d' | 'referencias' | 'ubicaciones' | 'movimientos' | '5s' | 'cierre' | 'protocolo';
-export type NavKey = 'inicio' | 'operaciones' | 'usuarios' | `inventario:${InventoryView}`;
+export type NavKey = 'inicio' | 'operaciones' | 'usuarios' | 'ajustes' | `inventario:${InventoryView}`;
 type NavItem = { key: NavKey; label: string; href: string; Icon: LucideIcon; admin?: boolean };
 
 export const inventoryViews: { view: InventoryView; label: string; Icon: LucideIcon }[] = [
@@ -36,7 +37,10 @@ const groups: { title: string; items: NavItem[] }[] = [
   ] },
   { title: 'Almacén', items: (['resumen', '3d', 'referencias', 'ubicaciones', 'movimientos'] as const).map(inventoryItem) },
   { title: 'Rutina', items: (['5s', 'cierre', 'protocolo'] as const).map(inventoryItem) },
-  { title: 'Administración', items: [{ key: 'usuarios', label: 'Personas y accesos', href: '/usuarios', Icon: Users, admin: true }] },
+  { title: 'Administración', items: [
+    { key: 'usuarios', label: 'Personas y accesos', href: '/usuarios', Icon: Users, admin: true },
+    { key: 'ajustes', label: 'Ajustes', href: '/ajustes', Icon: Settings2, admin: true },
+  ] },
 ];
 
 export type PaletteAction = { label: string; hint?: string; Icon: LucideIcon; run: () => void };
@@ -59,6 +63,19 @@ export default function AppShell({ user, active, data, sync, actions = [], child
   const pathname = usePathname();
   const router = useRouter();
   const visible = groups.map(group => ({ ...group, items: group.items.filter(item => !item.admin || user.role === 'administrador') })).filter(group => group.items.length);
+
+  // The administrator's colours, applied as soon as the warehouse data arrives.
+  const appearance = data?.settings.appearance;
+  useEffect(() => {
+    if (!appearance) return;
+    const root = document.documentElement.style;
+    root.setProperty('--accent', appearance.accent);
+    root.setProperty('--on-accent', readableOn(appearance.accent));
+    root.setProperty('--selection', appearance.selection);
+    root.setProperty('--on-selection', readableOn(appearance.selection));
+    root.setProperty('--logo-stroke', appearance.logoStroke);
+    root.setProperty('--logo-tile', appearance.logoTile);
+  }, [appearance]);
 
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -92,7 +109,7 @@ export default function AppShell({ user, active, data, sync, actions = [], child
   return <div className={'shell' + (menu ? ' menu-open' : '')}>
     <aside className="sidebar" aria-label="Navegación">
       <div className="sidebar-head">
-        <Link href="/" className="wordmark" onClick={() => setMenu(false)}><span className="glyph"><Logo variant="lima" size="62%" data-logo-target=""/></span>Burriana</Link>
+        <Link href="/" className="wordmark" onClick={() => setMenu(false)}><span className="glyph"><Logo variant="tema" size="62%" data-logo-target=""/></span>Burriana</Link>
         <button className="icon-btn sidebar-close" aria-label="Cerrar menú" onClick={() => setMenu(false)}><X size={18}/></button>
       </div>
       <button className="sidebar-search" onClick={() => { setMenu(false); setPalette(true); }}><Search size={15}/><span>Buscar</span><kbd>⌘K</kbd></button>

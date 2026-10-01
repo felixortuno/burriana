@@ -39,8 +39,8 @@
 .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; margin-bottom: 16px; }
 .chips button { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 980px; background: var(--surface); font-size: 14px; font-weight: 500; white-space: nowrap; box-shadow: 0 0 0 1px var(--hairline); }
 .chips button b { font-weight: 600; color: var(--ink-3); font-variant-numeric: tabular-nums; }
-.chips button[aria-pressed="true"] { background: var(--ink); color: #fff; box-shadow: none; }
-.chips button[aria-pressed="true"] b { color: rgba(255, 255, 255, 0.7); }
+.chips button[aria-pressed="true"] { background: var(--selection); color: var(--on-selection); box-shadow: none; }
+.chips button[aria-pressed="true"] b { color: inherit; opacity: 0.7; }
 
 .select-sm { height: 34px; padding: 0 30px 0 12px; border-radius: 10px; border: 0; background-color: var(--fill-2); font-size: 14px; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
 

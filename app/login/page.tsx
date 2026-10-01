@@ -11,7 +11,7 @@ export default function LoginPage() {
   return (
     <main className="signin">
       <div className="signin-card">
-        <span className="glyph"><Logo variant="lima" size="62%" title="Grupo Trimodos" data-logo-target="" /></span>
+        <span className="glyph"><Logo variant="tema" size="62%" title="Grupo Trimodos" data-logo-target="" /></span>
         <h1>Almacén de Burriana</h1>
         <p>Producción, expediciones y organización del turno.</p>
         <LoginForm />

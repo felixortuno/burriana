@@ -40,4 +40,29 @@ assert.throws(()=>applyAction(s,{type:'task',title:'Fecha imposible',zone:'A',ow
 {let q=initialState();const at=new Date('2026-09-30T12:00:00Z');q=applyAction(q,{type:'product',sku:'Q',name:'Fracción',family:'Planchas',minimum:0},at);q=applyAction(q,{type:'location',code:'Q-01',zone:'A',area:'carton',capacity:8},at);
 q=applyAction(q,{type:'movement',kind:'entrada',sku:'Q',qty:6.75,location:'Q-01',operator:'Prueba',labelled:true},at);q=applyAction(q,{type:'movement',kind:'salida',sku:'Q',qty:0.25,location:'Q-01',operator:'Prueba',verified:true,document:'ALB-Q'},at);assert.equal(q.locations[0].qty,6.5);
 q=applyAction(q,{type:'movement',kind:'salida',sku:'Q',qty:6.5,location:'Q-01',operator:'Prueba',verified:true,document:'ALB-Q'},at);assert.equal(q.locations[0].qty,0);assert.equal(q.locations[0].sku,'');}
-console.log('OK: autor autenticado, cierre, ediciones inexistentes, calendario real y cuartos de palet.');
+{
+ // Administrator-only: settings and direct stock corrections. Both are refused for an encargado.
+ const admin={id:'adm',name:'Admin',role:'administrador'},boss={id:'enc',name:'Encargado',role:'encargado'},at=new Date('2026-10-01T09:00:00Z');
+ let q=initialState();
+ q=applyAction(q,{type:'product',sku:'BIE-PL',name:'Biedronka (plancha)',family:'Planchas',minimum:26},at,admin);
+ q=applyAction(q,{type:'product',sku:'BIE-CJ',name:'Biedronka (caja)',family:'Cajas',minimum:0,boxesPerPallet:40},at,admin);
+ q=applyAction(q,{type:'location',code:'CAJ-01',zone:'A',area:'montaje',capacity:10},at,admin);
+ const rule={title:'Mantenimiento y limpieza',kind:'mantenimiento',weekday:5,everyWeeks:2,startDate:'2026-10-02',timing:{mode:'final',hours:2},notes:'',active:true};
+ assert.throws(()=>applyAction(q,{type:'settings',section:'rule',value:rule},at,boss),/Solo el administrador/);
+ assert.throws(()=>applyAction(q,{type:'adjust',location:'CAJ-01',sku:'BIE-CJ',qty:4},at,boss),/Solo el administrador/);
+ q=applyAction(q,{type:'settings',section:'rule',value:rule},at,admin);assert.equal(q.settings.rules[0].title,'Mantenimiento y limpieza');
+ // Editing the name without the field keeps the boxes per pallet; 0 clears it.
+ const caja=q.products.find(p=>p.sku==='BIE-CJ');
+ q=applyAction(q,{type:'product',id:caja.id,sku:'BIE-CJ',name:'Biedronka 40x30x23 (caja)',family:'Cajas',minimum:0},at,admin);assert.equal(q.products[1].boxesPerPallet,40);
+ assert.throws(()=>applyAction(q,{type:'product',id:caja.id,sku:'BIE-CJ',name:'x',family:'Cajas',minimum:0,boxesPerPallet:2.5},at,admin),/entero/);
+ // A correction records before and after as an «ajuste» movement.
+ q=applyAction(q,{type:'adjust',location:'CAJ-01',sku:'BIE-CJ',qty:6.5,reason:'Recuento'},at,admin);
+ assert.equal(q.locations[0].qty,6.5);assert.equal(q.movements[0].kind,'ajuste');assert.equal(q.movements[0].qty,6.5);assert.match(q.movements[0].notes,/De 0 a 6.5 palets. Motivo: Recuento/);
+ q=applyAction(q,{type:'adjust',location:'CAJ-01',sku:'BIE-CJ',qty:4},at,admin);assert.equal(q.movements[0].qty,2.5);assert.equal(q.movements[0].operator,'Admin');
+ assert.throws(()=>applyAction(q,{type:'adjust',location:'CAJ-01',sku:'BIE-CJ',qty:12},at,admin),/capacidad/);
+ q=applyAction(q,{type:'adjust',location:'CAJ-01',sku:'BIE-CJ',qty:12,capacity:12},at,admin);assert.equal(q.locations[0].capacity,12);
+ q=applyAction(q,{type:'adjust',location:'CAJ-01',qty:0},at,admin);assert.equal(q.locations[0].sku,'');assert.equal(q.movements[0].qty,12);
+ assert.throws(()=>applyAction(q,{type:'adjust',location:'CAJ-01',qty:0},at,admin),/No hay cambios/);
+ q=applyAction(q,{type:'product',id:caja.id,sku:'BIE-CJ',name:'x',family:'Cajas',minimum:0,boxesPerPallet:0},at,admin);assert.equal(q.products[1].boxesPerPallet,undefined);
+}
+console.log('OK: autor autenticado, cierre, ediciones inexistentes, calendario real, cuartos de palet, ajustes de administrador y cajas por palet.');

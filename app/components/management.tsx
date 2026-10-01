@@ -3,11 +3,12 @@
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, Check, ChevronRight, ClipboardList, Clock3, Coffee, Factory, Monitor, Package, Pause, Play, Plus, Rotate3d, Search, Settings2, ShieldCheck, Sparkles, Truck, Users, Wrench, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, CalendarClock, ArrowUpFromLine, Check, ChevronRight, ClipboardList, Clock3, Coffee, Factory, Monitor, Package, Pause, Play, Plus, Rotate3d, Search, Settings2, ShieldCheck, Sparkles, Truck, Users, Wrench, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useWarehouse } from '@/hooks/use-warehouse';
 import { madridDay, type Location, type State } from '@/lib/warehouse';
 import { sortOperationalOrders, type ProductionSpecification, type ShiftSettings, type WorkOrder, type WorkOrderKind, type WorkOrderStatus } from '@/lib/operations';
+import { blocksForDay, nextOccurrences, priorityOrder } from '@/lib/settings';
 import { cajaDestinations, formatPallets, linkPlancha, modelName, pairedCaja, planchaSources, productKind, stockBySku } from '@/lib/warehouse-insights';
 import type { PublicUser } from '@/lib/identity';
 import AppShell from './app-shell';
@@ -26,6 +27,8 @@ const statuses: Record<WorkOrderStatus, string> = { pendiente: 'Pendiente', en_c
 const dateTime = (date: string) => new Intl.DateTimeFormat('es-ES', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Madrid' }).format(new Date(date));
 const longDate = (day: string) => new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Madrid' }).format(new Date(day + 'T12:00:00Z'));
 const kindInfo = (kind: WorkOrderKind) => kinds.find(item => item.value === kind)!;
+const shortKind: Record<WorkOrderKind, string> = { viaje: 'viajes', pedido: 'pedidos', carga: 'cargas', descarga: 'descargas', mantenimiento: 'mantenimiento', limpieza: 'limpieza' };
+const shortDay = (day: string) => new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'Europe/Madrid' }).format(new Date(day + 'T12:00:00Z'));
 const isOpen = (order: WorkOrder) => !['completada', 'cancelada'].includes(order.status);
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const scheduleText = (order: WorkOrder) => `${order.scheduledDate.split('-').reverse().join('/')}, ${order.scheduledTime || 'sin hora fija'}`;
@@ -57,7 +60,8 @@ export default function Management({ section, user }: { section: 'dashboard' | '
   }, []);
 
   const all = data.workOrders;
-  const active = sortOperationalOrders(all.filter(isOpen));
+  const priority = priorityOrder(data.settings);
+  const active = sortOperationalOrders(all.filter(isOpen), priority);
   const due = active.filter(order => order.scheduledDate <= today);
   const current = due.find(order => order.status === 'en_curso') ?? due.find(order => order.status !== 'pausada');
   const completedToday = all.filter(order => order.completedAt && madridDay(new Date(order.completedAt)) === today);
@@ -71,8 +75,12 @@ export default function Management({ section, user }: { section: 'dashboard' | '
     (filter === 'todas' || (filter === 'activas' ? isOpen(order) : filter === 'hoy' ? order.scheduledDate === today : order.status === filter)) &&
     (kindFilter === 'todos' || order.kind === kindFilter) &&
     `${order.title} ${order.reference} ${order.truck} ${order.assignedTo}`.toLocaleLowerCase('es').includes(search.toLocaleLowerCase('es')),
-  ));
+  ), priority);
   const disabled = loading || !!error;
+  // Fixed blocks of the shift (normas): today's, or the next one coming.
+  const todayBlocks = today ? blocksForDay(data.settings.rules, today, data.shift) : [];
+  const nextRule = today && !todayBlocks.length ? data.settings.rules.map(rule => ({ rule, day: nextOccurrences(rule, today, 1)[0] })).filter(entry => entry.day).sort((a, b) => a.day.localeCompare(b.day))[0] : undefined;
+  const priorityText = Array.isArray(priority) ? `Prioridad: ${priority.map(kind => shortKind[kind]).join(', ')}` : 'Los viajes van primero; el encargado puede marcar una urgencia.';
   const nameOf = (sku: string) => data.products.find(product => product.sku === sku)?.name ?? sku;
 
   function newOrder(kind: WorkOrderKind = 'viaje') { setInitialKind(kind); setEditor('new'); setFailure(''); setFeedback(''); }
@@ -104,7 +112,7 @@ export default function Management({ section, user }: { section: 'dashboard' | '
     {feedback && <div className="callout success banner" role="status"><Check size={17}/>{feedback}<button className="icon-btn" style={{ marginLeft: 'auto' }} aria-label="Cerrar mensaje" onClick={() => setFeedback('')}><X size={15}/></button></div>}
     {(error || failure) && <div className="callout error banner" role="alert">{failure || error}<button className="btn secondary" onClick={refresh}>Actualizar datos</button></div>}
     {section === 'usuarios' ? <UsersPanel user={user}/> : loading ? <div className="loading" role="status">Cargando el estado del almacén…</div> : <>
-      <div className="shiftbar"><span><Clock3 size={16}/><b>Turno</b> {data.shift.startTime}–{data.shift.endTime}</span><span><Coffee size={16}/><b>Almuerzo</b> {data.shift.lunchStart && data.shift.lunchEnd ? `${data.shift.lunchStart}–${data.shift.lunchEnd}` : 'por definir'}</span><span className="note">Los viajes van primero; el encargado puede marcar una urgencia.</span></div>
+      <div className="shiftbar"><span><Clock3 size={16}/><b>Turno</b> {data.shift.startTime}–{data.shift.endTime}</span><span><Coffee size={16}/><b>Almuerzo</b> {data.shift.lunchStart && data.shift.lunchEnd ? `${data.shift.lunchStart}–${data.shift.lunchEnd}` : 'por definir'}</span>{todayBlocks.map(block => <span key={block.rule.id}><CalendarClock size={16}/><b>Hoy {block.start}–{block.end}</b> {block.rule.title}</span>)}{nextRule && <span><CalendarClock size={16}/><b>{shortDay(nextRule.day)}</b> {nextRule.rule.title}</span>}<span className="note">{priorityText}</span></div>
       {data.shift.announcement && <div className="callout blue announcement"><div><b>Aviso publicado.</b> {data.shift.announcement}</div></div>}
       {section === 'dashboard' ? <>
         <div className="summary">
