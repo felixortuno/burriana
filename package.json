@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ignore-pattern .next",
-    "test": "node --experimental-strip-types tests/warehouse.test.mjs && node --experimental-strip-types tests/access.test.mjs && node --experimental-strip-types tests/postgres-store.test.mjs && node --experimental-strip-types tests/operations.test.mjs && node --experimental-strip-types tests/users.test.mjs && node --experimental-strip-types tests/import-state.test.mjs"
+    "test": "node --experimental-strip-types tests/warehouse.test.mjs && node --experimental-strip-types tests/access.test.mjs && node --experimental-strip-types tests/postgres-store.test.mjs && node --experimental-strip-types tests/operations.test.mjs && node --experimental-strip-types tests/users.test.mjs && node --experimental-strip-types tests/import-state.test.mjs && node --experimental-strip-types tests/layout.test.mjs && node --experimental-strip-types tests/insights.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -36,6 +36,7 @@
     "recharts": "^3.8.0",
     "sonner": "^2.0.8",
     "tailwind-merge": "3.6.0",
+    "three": "^0.180.0",
     "vaul": "^1.1.2",
     "zod": "^3.25.76"
   },
@@ -44,6 +45,7 @@
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@types/three": "^0.180.0",
     "eslint": "9.39.4",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "4.2.1",

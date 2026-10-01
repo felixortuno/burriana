@@ -66,7 +66,7 @@ export default function LoginForm() {
         />
       </label>
       <button className="login-submit" type="submit" disabled={busy}>
-        {busy ? 'Entrando' : 'Entrar'}
+        {busy ? 'Entrando…' : 'Entrar'}
       </button>
     </form>
   );

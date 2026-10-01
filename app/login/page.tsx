@@ -1,57 +1,22 @@
 import type { Metadata } from 'next';
-import { Warehouse } from 'lucide-react';
+import { Box } from 'lucide-react';
 import LoginForm from './login-form';
-import WarehouseDrawing from './warehouse-drawing';
 
 export const metadata: Metadata = {
-  title: 'Entrar · BURRIANA - GTR SOLUTIONS-',
+  title: 'Entrar · Burriana',
   robots: { index: false, follow: false },
 };
 
 export default function LoginPage() {
   return (
-    <main className="login">
-      <section className="login-plan">
-        <div className="plan-sheet">
-          <WarehouseDrawing />
-          {/* A title block, the way the original drawing carries its own. */}
-          <div className="plan-titleblock">
-            <div>
-              <b>Plano 08</b>
-              <span>Distribución proyectada · diciembre de 2022</span>
-            </div>
-            <dl>
-              <div className="zone-carton">
-                <dt>Almacén de cartón</dt>
-                <dd>Bloques CAR</dd>
-              </div>
-              <div className="zone-montaje">
-                <dt>Montaje y almacenaje de cajas</dt>
-                <dd>Bloques CAJ</dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-      </section>
-
-      <section className="login-panel">
-        <div className="login-column">
-          <div className="login-brand">
-            <span className="login-mark"><Warehouse size={22} /></span>
-            <div>
-              <b>BURRIANA</b>
-              <small>GTR SOLUTIONS</small>
-            </div>
-          </div>
-
-          <h1>Entrar al almacén</h1>
-          <p>Producción, expediciones y organización del turno.</p>
-
-          <LoginForm />
-
-          <p className="login-foot">Accede con tu perfil de administrador, encargado o pantalla. La sesión dura ocho horas desde el acceso.</p>
-        </div>
-      </section>
+    <main className="signin">
+      <div className="signin-card">
+        <span className="glyph" aria-hidden="true"><Box size={28} strokeWidth={2} /></span>
+        <h1>Almacén de Burriana</h1>
+        <p>Producción, expediciones y organización del turno.</p>
+        <LoginForm />
+        <p className="login-foot">Entra con tu perfil de administrador, encargado o pantalla. La sesión dura ocho horas.</p>
+      </div>
     </main>
   );
 }

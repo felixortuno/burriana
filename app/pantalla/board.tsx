@@ -259,7 +259,7 @@ export default function WarehouseBoard() {
 
   return <main className="wb-screen">
     <header className="wb-header">
-      <div className="wb-brand"><span className="wb-brand-icon"><Warehouse aria-hidden="true" /></span><div><strong>BURRIANA<span>GTR SOLUTIONS</span></strong><p>Pantalla de trabajo</p></div></div>
+      <div className="wb-brand"><span className="wb-brand-icon"><Warehouse aria-hidden="true" /></span><div><strong>Burriana<span>GTR Solutions</span></strong><p>Pantalla de trabajo</p></div></div>
       <div className="wb-header-center"><span className={`wb-connection${stale ? ' wb-connection-bad' : ''}`}>{stale ? <WifiOff size={18} /> : <Radio size={18} />}{stale ? 'Datos sin actualizar' : snapshot ? 'Conectada' : 'Conectando'}</span><span>Solo información · actualiza el encargado</span></div>
       <div className="wb-clock"><time dateTime={currentTimestamp === null ? undefined : new Date(currentTimestamp).toISOString()}>{current.time || '—:—'}</time><span>{todayLabel}</span></div>
     </header>
