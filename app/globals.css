@@ -486,7 +486,7 @@ a.row { color: inherit; text-decoration: none; }
 /* ─── Toasts ───────────────────────────────────────────────────────────── */
 [data-sonner-toast] { border-radius: 14px !important; border: 0 !important; box-shadow: var(--shadow-float) !important; font-family: var(--font) !important; }
 
-/* ─── Sign in: app/login/login.css ───────────────────────────────────── */
+/* ─── Sign in: app/login/truck-doors.css + login-panel.css ─────────── */
 
 /* ─── Label photo (new reference) ──────────────────────────────────────── */
 .photo-read { margin-bottom: 18px; padding: 14px; border-radius: 14px; background: var(--canvas); }

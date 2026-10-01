@@ -1,0 +1,614 @@
+/*
+ * Trasera de un semirremolque de noche: las puertas se abren y del contenedor sale
+ * el panel. Solo HTML, CSS y SVG; solo se anima transform y opacity, una vez y sin
+ * bucles. Sin clase en .login = estado final (puertas abiertas, panel visible): es
+ * lo que se ve sin JS, con prefers-reduced-motion o si este archivo no carga.
+ * .cerradas = antes de empezar; .abriendo = keyframes en marcha; .corta = visitas siguientes.
+ */
+.login {
+  /* ── Colores ───────────────────────────────────────────────── */
+  --td-noche-arriba: #0F1216;
+  --td-noche-abajo: #1A1F26;
+  --td-farola: 255, 184, 108;        /* r, g, b de la luz cálida de la farola */
+  --td-interior: 255, 186, 118;      /* r, g, b de la luz del fondo del contenedor */
+  --td-pintura: #1C1C1A;             /* chapa de las puertas */
+  --td-lima: #D9E33B;                /* emblema y rótulo */
+  --td-goma: #080808;                /* juntas */
+  --td-dorso: #ADB0B3;               /* cara interior de las puertas */
+  --td-asfalto: #1B1F25;
+  --td-matricula: #B8171D;           /* remolque español: placa roja */
+  --td-fundido: #F5F5F7;             /* fondo de la app al entrar */
+
+  /* ── Tiempos (desde que se retira la pantalla de carga) ───── */
+  --td-ritmo: 1;                     /* multiplica todos; .corta lo baja a ~0,8 s */
+  --td-farola-dur: .4s;
+  --td-manetas-ini: .4s;
+  --td-manetas-dur: .4s;
+  --td-puertas-ini: .8s;
+  --td-puertas-dur: 1.2s;
+  --td-desfase: .12s;                /* la puerta derecha arranca después */
+  --td-panel-ini: 1.5s;
+  --td-panel-dur: .7s;
+  --td-salida: .3s;                  /* fundido a la app tras entrar */
+  --td-curva: cubic-bezier(.3, 0, .2, 1);
+  /* El ángulo final (±110°) y el rebote están en @keyframes td-abre-*. */
+
+  /* ── Medidas: móvil vertical (escritorio más abajo) ────────── */
+  --td-vh: 1vh;
+  --td-arriba: calc(3 * var(--td-vh));
+  --td-poste: 14px;
+  --td-cabecero: 20px;
+  --td-umbral: 14px;
+  --td-junta: 3px;
+  --td-hueco-h: calc(68 * var(--td-vh));
+  --td-hueco-w: calc(100vw - 2 * var(--td-poste) + 8px);
+  --td-bajos-h: calc(17 * var(--td-vh));
+  --td-perspectiva: 900px;
+
+  --td-caja-w: calc(var(--td-hueco-w) + 2 * var(--td-poste));
+  --td-caja-h: calc(var(--td-cabecero) + var(--td-hueco-h) + var(--td-umbral));
+  --td-hoja-w: calc(var(--td-hueco-w) / 2 - var(--td-junta));
+  --td-logo: min(calc(var(--td-hueco-w) * .48), calc(var(--td-hueco-h) * .4));
+  --td-eje: max(5px, calc(var(--td-hoja-w) * .03));
+  --td-suelo-y: calc(var(--td-arriba) + var(--td-caja-h) + var(--td-bajos-h));
+  --td-horizonte: calc(var(--td-arriba) + var(--td-cabecero) + var(--td-hueco-h) * .54);
+  /* Centra el panel en el hueco (lo lee login-panel.css). */
+  --td-capa-abajo: max(8px, calc(100 * var(--td-vh) - 2 * (var(--td-arriba) + var(--td-cabecero)) - var(--td-hueco-h)));
+
+  --td-ruido: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 .09'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--td-noche-arriba);
+  color: #F4F4EF;
+  font-family: var(--font-lato), "Lato", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+@supports (height: 1dvh) { .login { --td-vh: 1dvh; } }
+.login.corta { --td-ritmo: .36; }
+
+/* Escritorio: puertas de unos 70 vh, centradas, con la calle a los lados. */
+@media (min-width: 720px) and (min-aspect-ratio: 1/1) {
+  .login {
+    --td-arriba: calc(4 * var(--td-vh));
+    --td-hueco-h: calc(66 * var(--td-vh));
+    --td-hueco-w: min(calc(var(--td-hueco-h) * .94), calc(100vw - 200px));
+    --td-poste: calc(var(--td-hueco-h) * .045);
+    --td-cabecero: calc(var(--td-hueco-h) * .05);
+    --td-umbral: calc(var(--td-hueco-h) * .034);
+    --td-junta: 4px;
+    --td-perspectiva: 1400px;
+  }
+}
+/* Pantallas bajas (móvil apaisado, teclado abierto): más hueco, menos bajos. */
+@media (max-height: 520px) {
+  .login { --td-arriba: calc(2 * var(--td-vh)); --td-hueco-h: calc(80 * var(--td-vh)); --td-bajos-h: calc(10 * var(--td-vh)); }
+}
+
+/* ── Escena ─────────────────────────────────────────────────── */
+.td, .td i, .td b, .td span, .td div { box-sizing: border-box; }
+.td i, .td b { display: block; font-style: normal; }
+.td {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  background: linear-gradient(180deg, var(--td-noche-arriba) 0%, #12161c 45%, var(--td-noche-abajo) 100%);
+}
+.td::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 90% 80% at 50% 45%, transparent 58%, rgba(0, 0, 0, .5)); }
+
+.td-farola-luz {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 9% 5%, rgba(var(--td-farola), .3) 0, rgba(var(--td-farola), .1) 20vmax, transparent 46vmax);
+}
+.td-farola { display: none; }
+.td-luz { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 70% at 2% 0%, rgba(var(--td-farola), .12), rgba(var(--td-farola), .04) 50%, transparent 78%); }
+
+.td-suelo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: var(--td-horizonte);
+  background:
+    radial-gradient(ellipse 30% 34% at 8% 100%, rgba(var(--td-farola), .09), transparent),
+    linear-gradient(180deg, rgba(17, 20, 25, 0), rgba(17, 20, 25, .85) 40%, #161a1f 70%, var(--td-asfalto));
+}
+.td-marcas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.td-derrame {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--td-suelo-y) - 3 * var(--td-vh));
+  width: calc(var(--td-caja-w) * 1.5);
+  height: calc(18 * var(--td-vh));
+  margin-left: calc(var(--td-caja-w) * -.75);
+  background: radial-gradient(50% 50% at 50% 0%, rgba(var(--td-interior), .16), transparent);
+}
+
+.td-camion {
+  position: absolute;
+  left: 50%;
+  top: var(--td-arriba);
+  width: var(--td-caja-w);
+  height: calc(var(--td-caja-h) + var(--td-bajos-h));
+  margin-left: calc(var(--td-caja-w) / -2);
+}
+.td-sombra {
+  position: absolute;
+  left: -9%;
+  right: -9%;
+  bottom: calc(-3.5 * var(--td-vh));
+  height: calc(8 * var(--td-vh));
+  background: radial-gradient(closest-side, rgba(0, 0, 0, .85), rgba(0, 0, 0, .45) 60%, transparent);
+}
+
+/* Bajos: travesaño con pilotos y matrícula, ruedas con faldillas, paragolpes. */
+.td-bajos { position: absolute; left: 0; right: 0; bottom: 0; height: var(--td-bajos-h); }
+.td-bajos-fondo { position: absolute; inset: 0 5%; background: linear-gradient(180deg, #030405, #07080a 55%, rgba(8, 10, 12, .5)); }
+.td-rueda {
+  position: absolute;
+  top: 24%;
+  bottom: 0;
+  width: 15%;
+  border-radius: 14% / 9%;
+  background:
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, .04) 0 2px, transparent 2px 7px),
+    linear-gradient(90deg, #050505, #1e1f21 28%, #121314 62%, #030303);
+}
+.td-rueda::after { content: ""; position: absolute; left: -12%; right: -12%; bottom: -5px; height: 10px; background: radial-gradient(closest-side, #000, transparent); }
+.td-rueda.td-izq-x { left: 6%; }
+.td-rueda.td-der-x { right: 6%; }
+.td-faldilla {
+  position: absolute;
+  top: 25%;
+  bottom: 14%;
+  width: 18%;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, .06), transparent 35%), var(--td-ruido) 0 0 / 80px, #0d0d0e;
+  box-shadow: 0 3px 4px rgba(0, 0, 0, .6);
+}
+.td-faldilla.td-izq-x { left: 4.5%; }
+.td-faldilla.td-der-x { right: 4.5%; }
+.td-travesano { position: absolute; top: 0; left: 0; right: 0; height: 31%; background: linear-gradient(180deg, #3d4248, #2b2f34 22%, #1f2226 70%, #0b0c0e); box-shadow: 0 3px 5px rgba(0, 0, 0, .55); }
+.td-piloto {
+  position: absolute;
+  top: 5%;
+  height: 21%;
+  width: 19%;
+  display: flex !important;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 3px;
+  background: #0a0a0a;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, .6);
+}
+.td-piloto.td-izq-x { left: 2.5%; }
+.td-piloto.td-der-x { right: 2.5%; flex-direction: row-reverse; }
+.td-piloto b {
+  flex: 1;
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, .05) 40%, transparent 52%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .07) 0 1px, transparent 1px 3px),
+    var(--c, #4f0b0c);
+}
+.td-piloto b:first-child { --c: #6b430c; }
+.td-piloto b:last-child { --c: #46494c; }
+.td-matricula {
+  position: absolute;
+  left: 50%;
+  top: 6%;
+  display: flex;
+  width: calc(var(--td-caja-w) * .21);
+  height: calc(var(--td-caja-w) * .045);
+  margin-left: calc(var(--td-caja-w) * -.105);
+  overflow: hidden;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .16), transparent 45%), var(--td-matricula);
+  box-shadow: 0 0 0 1px #0a0a0a, 0 2px 3px rgba(0, 0, 0, .6);
+  color: #120808;
+  font: 700 calc(var(--td-caja-w) * .03)/1 "Arial Narrow", "Roboto Condensed", "Helvetica Neue", Arial, sans-serif;
+  white-space: nowrap;
+}
+.td-matricula i { display: flex; align-items: flex-end; justify-content: center; width: 11%; padding-bottom: 4%; background: #1f3a94; color: #e8e8e8; font-size: 50%; }
+.td-matricula span { flex: 1; align-self: center; text-align: center; letter-spacing: .03em; }
+.td-soporte { position: absolute; top: 30%; height: 32%; width: 2.6%; background: linear-gradient(90deg, #17191c, #3d4146 40%, #17191c); }
+.td-soporte.td-izq-x { left: 27%; }
+.td-soporte.td-der-x { right: 27%; }
+.td-paragolpes {
+  position: absolute;
+  left: 3.5%;
+  right: 3.5%;
+  top: 60%;
+  height: 10%;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #a9aeb3, #d0d4d7 16%, #8a8f95 46%, #55595e 78%, #2a2c2f);
+  box-shadow: 0 3px 4px rgba(0, 0, 0, .65);
+}
+/* Marcado de contorno reflectante, sin luz que lo haga brillar. */
+.td-paragolpes::after { content: ""; position: absolute; left: 2%; right: 2%; top: 30%; height: 38%; background: repeating-linear-gradient(90deg, #7a1d1d 0 16px, #3a0c0c 16px 18px); }
+
+/* Marco: postes, cabecero y umbral con biseles (luz arriba e izquierda). */
+.td-marco { position: absolute; left: 0; right: 0; top: 0; height: var(--td-caja-h); }
+.td-poste {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--td-poste);
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, .2) 0 1px, rgba(0, 0, 0, .55) 1.6px, transparent 2.4px) 50% 0 / 100% calc(var(--td-hueco-h) / 11),
+    linear-gradient(90deg, #111315, #40454b 14%, #33373d 55%, #23262a 86%, #0d0e10);
+}
+.td-poste.td-izq-x { left: 0; }
+.td-poste.td-der-x { right: 0; }
+.td-cabecero {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--td-cabecero);
+  background: linear-gradient(180deg, #50555b, #383c42 22%, #2c3035 70%, #121416);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, .5);
+}
+.td-galibo {
+  position: absolute;
+  top: 20%;
+  height: 52%;
+  width: calc(var(--td-caja-w) * .045);
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .3), transparent 50%), #4c0c0c;
+  box-shadow: 0 0 0 1px #0a0a0a;
+}
+.td-galibo.td-izq-x { left: 3%; }
+.td-galibo.td-der-x { right: 3%; }
+.td-umbral {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--td-umbral);
+  background: linear-gradient(180deg, #464b51, #30343a 35%, #222529 75%, #0d0e10);
+}
+
+/* ── Hueco: interior, junta y puertas ───────────────────────── */
+.td-hueco {
+  position: absolute;
+  left: var(--td-poste);
+  top: var(--td-cabecero);
+  width: var(--td-hueco-w);
+  height: var(--td-hueco-h);
+  perspective: var(--td-perspectiva);
+  perspective-origin: 50% 54%;      /* el punto de fuga del interior (VP en truck-doors.tsx) */
+}
+.td-interior, .td-interior svg, .td-interior-luz, .td-junta { position: absolute; inset: 0; width: 100%; height: 100%; }
+.td-interior { background: #1d1a17; }
+.td-interior-luz { background: radial-gradient(ellipse 58% 52% at 50% 54%, rgba(var(--td-interior), .34), rgba(var(--td-interior), .08) 60%, transparent); }
+.td-junta { box-shadow: inset 0 0 0 var(--td-junta) var(--td-goma), inset 0 0 0 calc(var(--td-junta) + 2px) rgba(0, 0, 0, .55); }
+
+.td-puerta {
+  position: absolute;
+  top: var(--td-junta);
+  bottom: var(--td-junta);
+  width: var(--td-hoja-w);
+  transform-style: preserve-3d;
+}
+.td-izq { left: var(--td-junta); transform-origin: 0 50%; transform: rotateY(-110deg); }
+.td-der { right: var(--td-junta); transform-origin: 100% 50%; transform: rotateY(110deg); }
+.td-cara, .td-dorso, .td-oscuro, .td-puerta::after {
+  position: absolute;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.td-cara, .td-dorso, .td-oscuro { inset: 0; }
+
+/* Cara exterior: chapa negra pintada. Capas: pintura → emblema → desgaste/grano → corrugado → herrajes. */
+.td-cara {
+  overflow: hidden;
+  transform: translateZ(0);
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .4), transparent 3.5%),
+    linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0) 38%, rgba(0, 0, 0, .24)),
+    var(--td-pintura);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .7), inset 1px 1px 0 2px rgba(255, 255, 255, .03);
+}
+/* Junta central: queda por encima del emblema, que se corta en dos. */
+.td-cara::after { content: ""; position: absolute; top: 0; bottom: 0; width: 3px; }
+.td-izq .td-cara::after { right: 0; background: linear-gradient(90deg, rgba(255, 255, 255, .06) 0 1px, var(--td-goma) 1px); }
+.td-der .td-cara::after { left: 0; background: linear-gradient(90deg, var(--td-goma) 0 2px, rgba(255, 255, 255, .06) 2px); }
+
+.td-emblema { position: absolute; top: calc(36% - var(--td-logo) / 2); width: var(--td-logo); height: var(--td-logo); }
+.td-emblema g { stroke: var(--td-lima); }
+.td-izq .td-emblema { right: calc(var(--td-logo) / -2); }
+.td-der .td-emblema { left: calc(var(--td-logo) / -2); }
+.td-rotulo {
+  position: absolute;
+  top: calc(36% + var(--td-logo) / 2 + var(--td-hueco-h) * .035);
+  width: calc(var(--td-hoja-w) * 2);
+  padding-left: .36em;              /* compensa el espaciado tras la última letra */
+  color: var(--td-lima);
+  font: 300 max(10px, calc(var(--td-logo) * .075))/1 var(--font-lato), "Lato", system-ui, sans-serif;
+  letter-spacing: .36em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.td-izq .td-rotulo { right: calc(var(--td-hoja-w) * -1); }
+.td-der .td-rotulo { left: calc(var(--td-hoja-w) * -1); }
+
+/* Desconchones del color de la chapa (solo se notan sobre la lima), grano y suciedad abajo. */
+.td-pintura {
+  position: absolute;
+  inset: 0;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100' viewBox='0 0 200 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23fff' stop-opacity='0'/%3E%3Cstop offset='1' stop-color='%23fff'/%3E%3C/linearGradient%3E%3Cmask id='m'%3E%3Crect width='200' height='100' fill='url(%23g)'/%3E%3C/mask%3E%3Cfilter id='f' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.05 .006' numOctaves='3' seed='9'/%3E%3CfeColorMatrix values='0 0 0 0 .38 0 0 0 0 .32 0 0 0 0 .25 1.1 0 0 0 -.42'/%3E%3C/filter%3E%3C/defs%3E%3Crect width='200' height='100' filter='url(%23f)' mask='url(%23m)'/%3E%3C/svg%3E") 0 100% / 100% 30% no-repeat,
+    linear-gradient(0deg, rgba(92, 78, 62, .2), rgba(92, 78, 62, .06) 12%, transparent 26%),
+    var(--td-ruido) 0 0 / 160px,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='c' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.15' numOctaves='4' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .11 0 0 0 0 .11 0 0 0 0 .1 -40 0 0 0 10.9'/%3E%3C/filter%3E%3Crect width='260' height='260' filter='url(%23c)'/%3E%3C/svg%3E") 0 0 / 260px;
+}
+/* Corrugado vertical: cresta, flanco en sombra, valle, flanco iluminado (24 px). */
+.td-corrugado {
+  position: absolute;
+  inset: 2.6% 6.5%;
+  background: repeating-linear-gradient(90deg,
+    rgba(255, 255, 255, .035) 0, rgba(255, 255, 255, .035) 6px,
+    rgba(0, 0, 0, .26) 9px, rgba(0, 0, 0, .26) 11px,
+    rgba(0, 0, 0, .08) 13px, rgba(0, 0, 0, .08) 19px,
+    rgba(255, 255, 255, .09) 21px, rgba(255, 255, 255, .09) 22.5px,
+    rgba(255, 255, 255, .035) 24px);
+  box-shadow: inset 1px 1px 0 rgba(0, 0, 0, .55), inset -1px -1px 0 rgba(255, 255, 255, .04), 0 0 0 1px rgba(255, 255, 255, .025);
+}
+
+/* Bisagras (la pala en la puerta; el nudillo está en el marco). */
+.td-bisagra {
+  --alto: max(8px, calc(var(--td-hueco-h) * .024));
+  position: absolute;
+  top: calc(var(--t) * 100%);
+  left: 0;
+  width: 18%;
+  height: var(--alto);
+  margin-top: calc(var(--alto) / -2);
+  border-radius: 0 3px 3px 0;
+  background:
+    radial-gradient(circle, #c9cdd1 0 1px, #1e2023 1.6px, transparent 2.3px) 0 50% / 33.3% 100% repeat-x,
+    linear-gradient(180deg, #8f959b, #5e6369 45%, #3a3e43 80%, #1d1f22);
+  box-shadow: 1px 2px 2px rgba(0, 0, 0, .6);
+}
+.td-der .td-bisagra { left: auto; right: 0; border-radius: 3px 0 0 3px; }
+
+/* Barras de cierre: eje cromado, guías atornilladas, levas arriba y abajo, maneta y retén. */
+.td-barra { position: absolute; top: 1.4%; bottom: 1.4%; left: calc(var(--td-hoja-w) * var(--k)); width: 0; }
+.td-der .td-barra { left: auto; right: calc(var(--td-hoja-w) * var(--k)); }
+.td-eje {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--td-eje) / -2);
+  width: var(--td-eje);
+  border-radius: 2px;
+  background: linear-gradient(90deg, #2e3135, #9da3a9 22%, #f0f2f4 40%, #b8bdc2 56%, #5d6268 80%, #222528);
+  box-shadow: 2px 1px 2px rgba(0, 0, 0, .65);
+}
+.td-guia {
+  position: absolute;
+  left: calc(var(--td-eje) * -1.9);
+  width: calc(var(--td-eje) * 3.8);
+  height: calc(var(--td-eje) * 2);
+  margin-top: calc(var(--td-eje) * -1);
+  border-radius: 2px;
+  background:
+    radial-gradient(circle at 17% 50%, #d0d4d7 0 1px, #1c1e21 1.6px, transparent 2.2px),
+    radial-gradient(circle at 83% 50%, #d0d4d7 0 1px, #1c1e21 1.6px, transparent 2.2px),
+    linear-gradient(180deg, #858b91, #50555b 50%, #2b2e32);
+  box-shadow: 1px 2px 2px rgba(0, 0, 0, .55);
+}
+.td-leva {
+  position: absolute;
+  top: calc(var(--td-eje) * -1.1);
+  left: calc(var(--td-eje) * -.6);
+  width: calc(var(--td-eje) * 2.9);
+  height: calc(var(--td-eje) * 2.3);
+  border-radius: 1px 45% 45% 1px;
+  transform-origin: calc(var(--td-eje) * .6) 50%;
+  transform: scaleX(.35);
+  background: linear-gradient(180deg, #91979d, #50555b 60%, #2a2d31);
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, .6);
+}
+.td-leva.td-abajo { top: auto; bottom: calc(var(--td-eje) * -1.1); }
+.td-der .td-leva { left: auto; right: calc(var(--td-eje) * -.6); border-radius: 45% 1px 1px 45%; transform-origin: calc(100% - var(--td-eje) * .6) 50%; }
+.td-maneta {
+  --grueso: max(6px, calc(var(--td-eje) * 1.15));
+  position: absolute;
+  top: 66%;
+  right: calc(var(--td-eje) * -.3);
+  width: calc(var(--td-hoja-w) * .22);
+  height: var(--grueso);
+  margin-top: calc(var(--grueso) / -2);
+  border-radius: 99px 3px 3px 99px;
+  transform-origin: calc(100% - var(--grueso) / 2) 50%;
+  transform: rotate(14deg) rotateY(78deg);
+  background: linear-gradient(180deg, #e8ebee, #a9afb5 35%, #6a7076 70%, #33373b);
+  box-shadow: 1px 3px 3px rgba(0, 0, 0, .6);
+}
+.td-maneta::after {
+  content: "";
+  position: absolute;
+  right: calc(var(--grueso) * -.2);
+  top: calc(var(--grueso) * -.35);
+  width: calc(var(--grueso) * 1.7);
+  height: calc(var(--grueso) * 1.7);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f2f4f5, #8a9096 55%, #3a3e42);
+}
+.td-der .td-maneta { right: auto; left: calc(var(--td-eje) * -.3); border-radius: 3px 99px 99px 3px; transform-origin: calc(var(--grueso) / 2) 50%; transform: rotate(-14deg) rotateY(-78deg); }
+.td-der .td-maneta::after { right: auto; left: calc(var(--grueso) * -.2); }
+.td-reten {
+  position: absolute;
+  top: 66%;
+  right: calc(var(--td-hoja-w) * .2 - var(--td-eje) * 1.4);
+  width: calc(var(--td-eje) * 2.6);
+  height: calc(var(--td-eje) * 3);
+  margin-top: calc(var(--td-eje) * -1.5);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #1a1c1f, #3b3f44 30%, #24272b);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12), 1px 2px 2px rgba(0, 0, 0, .55);
+}
+.td-der .td-reten { right: auto; left: calc(var(--td-hoja-w) * .2 - var(--td-eje) * 1.4); }
+
+/* Oscurecimiento al girar: una capa por cara, dentro del 3D para que se oculte con ella. */
+.td-oscuro { background: #000; opacity: .5; }
+.td-oscuro-cara { transform: translateZ(1px); }
+.td-oscuro-dorso { transform: translateZ(-9px) rotateY(180deg); }
+
+/* Cara interior: chapa gris clara lisa, con la goma perimetral. */
+.td-dorso {
+  overflow: hidden;
+  transform: translateZ(-8px) rotateY(180deg);
+  background:
+    repeating-linear-gradient(180deg, transparent 0 calc(25% - 1px), rgba(0, 0, 0, .16) calc(25% - 1px) 25%),
+    linear-gradient(90deg, rgba(0, 0, 0, .22), transparent 30%, transparent 70%, rgba(0, 0, 0, .22)),
+    linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(0, 0, 0, .2)),
+    var(--td-dorso);
+  box-shadow: inset 0 0 0 4px #121212, inset 0 0 0 5px rgba(255, 255, 255, .25), inset 0 0 26px rgba(0, 0, 0, .3);
+}
+/* Canto: 8 mm de puerta vistos al girar. */
+.td-puerta::after {
+  content: "";
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  background: linear-gradient(90deg, #34342f, #22221e 55%, #050505);
+}
+.td-izq::after { left: 100%; transform-origin: 0 50%; transform: rotateY(90deg); }
+.td-der::after { right: 100%; transform-origin: 100% 50%; transform: rotateY(-90deg); }
+
+/* Herrajes fijos al marco: nudillos de las bisagras y cerraderos de las levas. */
+.td-herrajes { position: absolute; left: var(--td-poste); top: var(--td-cabecero); width: var(--td-hueco-w); height: var(--td-hueco-h); }
+.td-nudillo {
+  position: absolute;
+  top: calc(var(--td-junta) + (var(--td-hueco-h) - 2 * var(--td-junta)) * var(--t));
+  width: calc(var(--td-poste) * .62);
+  height: calc(var(--td-hueco-h) * .055);
+  margin-top: calc(var(--td-hueco-h) * -.0275);
+  border-radius: 3px;
+  background: linear-gradient(90deg, #26292c, #8e949a 38%, #d6dadd 50%, #6b7177 70%, #1a1c1f);
+  box-shadow: 2px 2px 3px rgba(0, 0, 0, .55);
+}
+.td-nudillo.td-izq-x { left: calc(var(--td-junta) - var(--td-poste) * .45); }
+.td-nudillo.td-der-x { right: calc(var(--td-junta) - var(--td-poste) * .45); }
+.td-cerradero {
+  position: absolute;
+  top: calc(var(--td-cabecero) * -.4);
+  width: calc(var(--td-eje) * 2.6);
+  height: calc(var(--td-cabecero) * .4 + var(--td-junta) + var(--td-eje) * .9);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #5d6268, #3a3e43 60%, #1d1f22);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .45), 1px 2px 2px rgba(0, 0, 0, .5);
+}
+.td-cerradero.td-abajo { top: auto; bottom: calc(var(--td-umbral) * -.4); height: calc(var(--td-umbral) * .4 + var(--td-junta) + var(--td-eje) * .9); }
+.td-cerradero.td-izq-x { left: calc(var(--td-junta) + var(--td-hoja-w) * var(--k) - var(--td-eje) * 1.3); }
+.td-cerradero.td-der-x { right: calc(var(--td-junta) + var(--td-hoja-w) * var(--k) - var(--td-eje) * 1.3); }
+
+.td-diana {
+  position: absolute;
+  left: calc(var(--td-poste) + var(--td-hueco-w) / 2 - var(--td-logo) / 2);
+  top: calc(var(--td-cabecero) + var(--td-junta) + (var(--td-hueco-h) - 2 * var(--td-junta)) * .36 - var(--td-logo) / 2);
+  width: var(--td-logo);
+  height: var(--td-logo);
+}
+
+/* Farola (solo con sitio a los lados). */
+@media (min-width: 720px) and (min-aspect-ratio: 1/1) {
+  .td-farola {
+    display: block;
+    position: absolute;
+    left: 7vw;
+    top: calc(6 * var(--td-vh));
+    width: 7px;
+    height: calc(var(--td-suelo-y) - 11 * var(--td-vh));
+    background: linear-gradient(90deg, #343a41, #1a1d21 60%, #0e1013);
+  }
+  .td-farola::before { content: ""; position: absolute; left: 3px; top: 0; width: 46px; height: 4px; border-radius: 2px; background: #22262b; }
+  .td-farola::after {
+    content: "";
+    position: absolute;
+    left: 34px;
+    top: 2px;
+    width: 40px;
+    height: 9px;
+    border-radius: 3px 3px 8px 8px;
+    background: linear-gradient(180deg, #2b3035 0 55%, rgb(255, 222, 176) 55%);
+  }
+  .td-farola-foco { position: absolute; left: -26px; top: -40px; width: 160px; height: 120px; background: radial-gradient(closest-side, rgba(var(--td-farola), .55), rgba(var(--td-farola), .12) 45%, transparent); }
+}
+
+/* ── Panel y salida ─────────────────────────────────────────── */
+.login-fundido { position: absolute; inset: 0; z-index: 3; background: var(--td-fundido); opacity: 0; pointer-events: none; }
+.login.saliendo .login-fundido { opacity: 1; transition: opacity var(--td-salida) ease-out; }
+
+/* ── Animación ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  /* Antes de empezar: puertas cerradas, manetas bajadas, sin farola, panel dentro. */
+  .cerradas .td-puerta, .cerradas .td-maneta, .cerradas .td-leva { transform: none; }
+  .cerradas .td-oscuro, .cerradas .td-farola-luz, .cerradas .td-luz, .cerradas .td-farola-foco, .cerradas .td-derrame { opacity: 0; }
+  .cerradas .td-interior-luz { opacity: .5; }
+  .cerradas .login-panel { opacity: 0; transform: scale(.9); }
+
+  .abriendo .td-farola-luz, .abriendo .td-luz, .abriendo .td-farola-foco {
+    animation: td-aparece calc(var(--td-farola-dur) * var(--td-ritmo)) ease-out both;
+  }
+  .abriendo .td-maneta, .abriendo .td-leva {
+    animation: td-suelta calc(var(--td-manetas-dur) * var(--td-ritmo)) ease-in-out calc(var(--td-manetas-ini) * var(--td-ritmo)) both;
+  }
+  .abriendo .td-izq .td-maneta { animation-name: td-maneta-izq; }
+  .abriendo .td-der .td-maneta { animation-name: td-maneta-der; }
+  .abriendo .td-eje {
+    animation: td-gira-eje calc(var(--td-manetas-dur) * var(--td-ritmo)) ease-in-out calc(var(--td-manetas-ini) * var(--td-ritmo)) both;
+  }
+  .abriendo .td-izq {
+    animation: td-abre-izq calc(var(--td-puertas-dur) * var(--td-ritmo)) linear calc(var(--td-puertas-ini) * var(--td-ritmo)) both;
+  }
+  .abriendo .td-der {
+    animation: td-abre-der calc(var(--td-puertas-dur) * var(--td-ritmo)) linear calc((var(--td-puertas-ini) + var(--td-desfase)) * var(--td-ritmo)) both;
+  }
+  .abriendo .td-izq .td-oscuro {
+    animation: td-aparece calc(var(--td-puertas-dur) * var(--td-ritmo)) ease-in calc(var(--td-puertas-ini) * var(--td-ritmo)) both;
+  }
+  .abriendo .td-der .td-oscuro {
+    animation: td-aparece calc(var(--td-puertas-dur) * var(--td-ritmo)) ease-in calc((var(--td-puertas-ini) + var(--td-desfase)) * var(--td-ritmo)) both;
+  }
+  .abriendo .td-derrame {
+    animation: td-aparece calc(var(--td-puertas-dur) * var(--td-ritmo)) ease-out calc(var(--td-puertas-ini) * var(--td-ritmo)) both;
+  }
+  .abriendo .td-interior-luz {
+    animation: td-intensifica calc(var(--td-panel-dur) * var(--td-ritmo)) ease-out calc(var(--td-panel-ini) * var(--td-ritmo)) both;
+  }
+  .abriendo .login-panel {
+    animation: td-panel calc(var(--td-panel-dur) * var(--td-ritmo)) cubic-bezier(.2, .8, .2, 1) calc(var(--td-panel-ini) * var(--td-ritmo)) both;
+  }
+  .abriendo .td-puerta, .abriendo .login-panel { will-change: transform; }
+  .abriendo .td-oscuro { will-change: opacity; }
+}
+
+/* Sin «to»: cada animación acaba en el estado final de arriba. */
+@keyframes td-aparece { from { opacity: 0; } }
+@keyframes td-intensifica { from { opacity: .5; } }
+@keyframes td-suelta { from { transform: none; } }
+/* Maneta: sale del retén (sube 14°) y bascula hacia fuera, que de frente se ve como un acortamiento. */
+@keyframes td-maneta-izq { from { transform: none; } 35% { transform: rotate(14deg); } }
+@keyframes td-maneta-der { from { transform: none; } 35% { transform: rotate(-14deg); } }
+@keyframes td-gira-eje { 50% { transform: scaleX(.7); } }
+@keyframes td-panel { from { opacity: 0; transform: scale(.9); } }
+/* Apertura hasta ±110° con un rebote de 2,5°. */
+@keyframes td-abre-izq {
+  from { transform: rotateY(0deg); animation-timing-function: var(--td-curva); }
+  80% { transform: rotateY(-112.5deg); animation-timing-function: ease-in-out; }
+  91% { transform: rotateY(-109.2deg); animation-timing-function: ease-in-out; }
+}
+@keyframes td-abre-der {
+  from { transform: rotateY(0deg); animation-timing-function: var(--td-curva); }
+  80% { transform: rotateY(112.5deg); animation-timing-function: ease-in-out; }
+  91% { transform: rotateY(109.2deg); animation-timing-function: ease-in-out; }
+}
