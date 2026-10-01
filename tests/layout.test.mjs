@@ -16,21 +16,26 @@ const sum = list => list.reduce((n, v) => n + v, 0);
 const placed = area => sum(layout.stacks.filter(stack => stack.area === area).flatMap(stack => stack.levels));
 assert.equal(placed('carton'), sum(planchas));
 assert.equal(placed('montaje'), sum(cajas));
-assert.deepEqual(layout.stackHeight, { carton: 2, montaje: 3 });
-assert.equal(layout.overflow, 0);
+// Always two high: the 566 box pallets need 288 positions, 12 more than the bottom strip has.
+assert.deepEqual(layout.stackHeight, { carton: 2, montaje: 2 });
+assert.deepEqual(layout.positions, { carton: 141, montaje: 288 });
+assert.equal(layout.overflow, 12);
+assert.equal(layout.hidden, 0);
+assert.ok(layout.stacks.every(stack => stack.levels.length <= 2));
 assert.equal(layout.stacks.some(stack => stack.locationId === 'free'), false);
 
 const keys = layout.stacks.map(stack => `${stack.slot.x}:${stack.slot.y}`);
 assert.equal(new Set(keys).size, keys.length, 'two stacks share a pallet position');
 assert.ok(layout.stacks.filter(s => s.area === 'carton').every(s => cartonSlots.includes(s.slot)));
-assert.ok(layout.stacks.filter(s => s.area === 'montaje').every(s => cajasSlots.includes(s.slot)));
+assert.equal(layout.stacks.filter(s => s.area === 'montaje' && !cajasSlots.includes(s.slot)).length, 12);
 // Boxes start next to the offices and move towards the bottom-left corner.
 const firstBoxes = layout.stacks.find(stack => stack.area === 'montaje');
 assert.equal(firstBoxes.slot.x, Math.max(...cajasSlots.map(slot => slot.x)));
 
-// A zone that cannot hold its stock stacks higher before spilling onto the open floor.
+// A zone that cannot hold its stock spills onto the open floor, then leaves the rest out of view.
 const crowded = layoutWarehouse([{ id: 'x', code: 'CAJ-01', zone: '', capacity: 5000, sku: 'X', qty: 2000, area: 'montaje' }]);
-assert.equal(crowded.stackHeight.montaje, 6);
-assert.ok(crowded.overflow > 0);
+assert.equal(crowded.stackHeight.montaje, 2);
+assert.equal(crowded.overflow, 128);
+assert.equal(crowded.hidden, 1000 - 276 - 128);
 assert.equal(layoutWarehouse([{ id: 'p', code: 'P', zone: '', capacity: 4, sku: 'X', qty: 2 }]).unplaced.length, 1);
-console.log('OK: posiciones del plano, alturas de apilado, cuartos de palet y orden desde oficinas.');
+console.log('OK: posiciones del plano, dos alturas, desborde a la zona libre, cuartos de palet y orden desde oficinas.');

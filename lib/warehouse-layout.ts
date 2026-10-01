@@ -28,8 +28,15 @@ export type WarehouseLayout = {
   stackHeight: Record<WarehouseArea, number>;
   /** Stacks that did not fit in the zone and were placed in the open floor near the machines. */
   overflow: number;
+  /** Stacks that fit nowhere on the drawing and are left out of the view. */
+  hidden: number;
+  /** Floor positions used per zone, overflow included. */
+  positions: Record<WarehouseArea, number>;
   unplaced: Location[];
 };
+
+/** Pallets are stored two high everywhere in the building. */
+export const STACK_HEIGHT = 2;
 
 const range = (count: number, start: number, step: number) => Array.from({ length: count }, (_, i) => start + i * step);
 
@@ -73,25 +80,22 @@ export function stackLevels(qty: number, height: number): number[][] {
 const byCode = (a: Location, b: Location) => a.code.localeCompare(b.code, 'es', { numeric: true });
 
 function placeArea(area: WarehouseArea, locations: Location[], slots: Slot[], usedOverflow: { next: number }) {
-  // The lowest stacking height whose stacks fit; double height is the usual rule.
-  let height = 2;
-  const stacksFor = (h: number) => locations.reduce((n, location) => n + stackLevels(location.qty, h).length, 0);
-  while (height < 6 && stacksFor(height) > slots.length) height++;
   const stacks: Stack[] = [];
   let next = 0;
   let overflow = 0;
+  let hidden = 0;
   for (const location of [...locations].sort(byCode)) {
-    for (const levels of stackLevels(location.qty, height)) {
+    for (const levels of stackLevels(location.qty, STACK_HEIGHT)) {
       let slot = slots[next++];
       if (!slot) {
         slot = overflowSlots[usedOverflow.next++];
+        if (!slot) { hidden++; continue; }
         overflow++;
-        if (!slot) break;
       }
       stacks.push({ locationId: location.id, code: location.code, sku: location.sku, area, slot, levels });
     }
   }
-  return { stacks, height, overflow };
+  return { stacks, overflow, hidden };
 }
 
 export function layoutWarehouse(locations: Location[]): WarehouseLayout {
@@ -104,8 +108,10 @@ export function layoutWarehouse(locations: Location[]): WarehouseLayout {
   return {
     slots: [...cartonSlots, ...cajasSlots],
     stacks: [...a.stacks, ...b.stacks],
-    stackHeight: { carton: a.height, montaje: b.height },
+    stackHeight: { carton: STACK_HEIGHT, montaje: STACK_HEIGHT },
     overflow: a.overflow + b.overflow,
+    hidden: a.hidden + b.hidden,
+    positions: { carton: a.stacks.length, montaje: b.stacks.length },
     unplaced: stocked.filter(location => location.area !== 'carton' && location.area !== 'montaje'),
   };
 }

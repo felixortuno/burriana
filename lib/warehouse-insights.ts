@@ -98,3 +98,39 @@ export function linkPlancha(state: Stock, planchaSku: string) {
   const outputLocation = outputSku ? cajaDestinations(state, outputSku, inputLocation)[0]?.code ?? '' : '';
   return { inputSku: planchaSku, inputLocation, outputSku, outputLocation };
 }
+
+/**
+ * How a pallet of assembled boxes is built in Burriana: layers of 5 boxes, 3 along
+ * the top and 2 across, 10 or 11 layers high. With 60×40 boxes that is a 1.2 × 1.0 m
+ * footprint. Without a figure for the model, 10 layers (50 boxes) are assumed.
+ */
+export const BOXES_PER_LAYER = 5;
+export const DEFAULT_LAYERS = 10;
+export const DEFAULT_BOXES_PER_PALLET = BOXES_PER_LAYER * DEFAULT_LAYERS;
+
+/** Box length, width and height in centimetres, read from the model code (60X40X14). */
+export function boxDimensions(sku: string) {
+  const match = /(\d+(?:\.\d+)?)X(\d+(?:\.\d+)?)X(\d+(?:\.\d+)?)/i.exec(sku);
+  if (!match) return null;
+  const [a, b, height] = match.slice(1, 4).map(Number);
+  return { length: Math.max(a, b), width: Math.min(a, b), height };
+}
+
+export function boxesPerPallet(product?: Pick<Product, 'boxesPerPallet'>) {
+  return { boxes: product?.boxesPerPallet ?? DEFAULT_BOXES_PER_PALLET, estimated: !product?.boxesPerPallet };
+}
+
+/** Approximate size of one loaded pallet in metres, without the wooden base. */
+export function palletShape(product: Pick<Product, 'sku' | 'boxesPerPallet'>) {
+  const box = boxDimensions(product.sku) ?? { length: 60, width: 40, height: 15 };
+  const { boxes, estimated } = boxesPerPallet(product);
+  const layers = boxes / BOXES_PER_LAYER;
+  return {
+    width: Math.max(3 * box.width, 2 * box.length) / 100,
+    depth: (box.length + box.width) / 100,
+    height: (layers * box.height) / 100,
+    layers,
+    boxes,
+    estimated,
+  };
+}

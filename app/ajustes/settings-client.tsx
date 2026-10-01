@@ -11,7 +11,7 @@ import type { WorkOrderKind } from '@/lib/operations';
 import type { PublicUser } from '@/lib/identity';
 import { brand } from '@/lib/brand';
 import { defaultAppearance, defaultBoard, defaultPriorities, describeRule, nextOccurrences, readableOn, ruleWindow, weekdayNames, weekdayOf, type Appearance, type BoardTheme, type RuleKind, type ShiftRule } from '@/lib/settings';
-import { formatPallets, modelName, productKind, stockBySku } from '@/lib/warehouse-insights';
+import { BOXES_PER_LAYER, DEFAULT_BOXES_PER_PALLET, DEFAULT_LAYERS, formatPallets, modelName, productKind, stockBySku } from '@/lib/warehouse-insights';
 import AppShell from '../components/app-shell';
 import { useAppReady } from '../components/app-loader';
 import Logo from '../components/logo';
@@ -212,14 +212,14 @@ function BoxesPerPallet({ data, busy, commit }: { data: State; busy: boolean; co
   const [values, setValues] = useState<Record<string, string>>({});
   const value = (sku: string, saved?: number) => values[sku] ?? (saved ? String(saved) : '');
   return <section className="group">
-    <div className="group-head"><div><h2>Cajas por palet</h2><p>Cuántas cajas montadas lleva un palet de cada modelo. Cambia con la plancha, así que se indica por referencia de caja. Con ello la app muestra las cajas totales además de los palets.</p></div></div>
+    <div className="group-head"><div><h2>Cajas por palet</h2><p>Cada capa lleva {BOXES_PER_LAYER} cajas (3 a lo largo y 2 a lo ancho) y un palet suele tener 10 u 11 capas: {BOXES_PER_LAYER * 10} o {BOXES_PER_LAYER * 11} cajas. Si un modelo no tiene dato se calcula con {DEFAULT_BOXES_PER_PALLET} ({DEFAULT_LAYERS} capas). La vista 3D usa esta cifra para la altura de cada palet.</p></div></div>
     {cajas.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Modelo</th><th className="right">Palets</th><th style={{ width: 150 }}>Cajas por palet</th><th className="right">Cajas en stock</th><th/></tr></thead><tbody>
       {cajas.map(product => { const current = value(product.sku, product.boxesPerPallet); const number = Number(current); const changed = current !== (product.boxesPerPallet ? String(product.boxesPerPallet) : ''); const pallets = stock.get(product.sku) ?? 0;
         return <tr key={product.id}>
           <td><b>{modelName(product)}</b><small className="mono">{product.sku}</small></td>
           <td className="right num">{formatPallets(pallets)}</td>
-          <td><div className="field" style={{ margin: 0 }}><input type="number" min={1} step={1} inputMode="numeric" aria-label={`Cajas por palet de ${product.name}`} placeholder="Sin indicar" value={current} onChange={event => setValues(previous => ({ ...previous, [product.sku]: event.target.value }))} style={{ minHeight: 34, padding: '4px 10px' }}/></div></td>
-          <td className="right num">{number > 0 ? Math.round(pallets * number).toLocaleString('es-ES') : '—'}</td>
+          <td><div className="field" style={{ margin: 0 }}><input type="number" min={1} step={1} inputMode="numeric" aria-label={`Cajas por palet de ${product.name}`} placeholder={`${DEFAULT_BOXES_PER_PALLET} (estimado)`} value={current} onChange={event => setValues(previous => ({ ...previous, [product.sku]: event.target.value }))} style={{ minHeight: 34, padding: '4px 10px' }}/></div></td>
+          <td className="right num">{number > 0 ? Math.round(pallets * number).toLocaleString('es-ES') : `≈ ${Math.round(pallets * DEFAULT_BOXES_PER_PALLET).toLocaleString('es-ES')}`}</td>
           <td className="right">{changed && <button className="btn primary" style={{ height: 30 }} disabled={busy || (current !== '' && !(Number.isInteger(number) && number > 0))} onClick={async () => { if (await commit({ type: 'product', id: product.id, sku: product.sku, name: product.name, family: product.family, minimum: product.minimum, boxesPerPallet: current === '' ? 0 : number }, `Cajas por palet de ${modelName(product)} guardadas.`)) setValues(previous => { const next = { ...previous }; delete next[product.sku]; return next; }); }}>Guardar</button>}</td>
         </tr>; })}
     </tbody></table></div> : <p className="quiet">No hay referencias de cajas en el catálogo.</p>}

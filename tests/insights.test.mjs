@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { cajaDestinations, formatPallets, linkPlancha, locationsToReview, modelKey, modelSummary, pairedCaja, planchaSources, productKind } from '../lib/warehouse-insights.ts';
+import { boxDimensions, cajaDestinations, palletShape, formatPallets, linkPlancha, locationsToReview, modelKey, modelSummary, pairedCaja, planchaSources, productKind } from '../lib/warehouse-insights.ts';
 
 assert.equal(modelKey('BIEDRONKA-40X30X23-PL'), 'BIEDRONKA-40X30X23');
 assert.equal(modelKey('COLUMNA-NEGRA-60X40X15.5-CJ'), 'COLUMNA-NEGRA-60X40X15.5');
@@ -46,4 +46,10 @@ assert.deepEqual(cajaDestinations(linked, 'NUEVA-CJ').map(l => l.code), ['CAJ-04
 // A plancha without stock is planned from an empty cardboard block; a model without caja leaves the caja to choose.
 const solo = { products: [{ id: 'p', sku: 'LIDL-VERDE-60X40X11-PL', name: 'Lidl Verde 60x40x11 (plancha)', family: 'Planchas', minimum: 0 }], locations: linked.locations };
 assert.deepEqual(linkPlancha(solo, 'LIDL-VERDE-60X40X11-PL'), { inputSku: 'LIDL-VERDE-60X40X11-PL', inputLocation: 'CAR-09', outputSku: '', outputLocation: '' });
-console.log('OK: modelos emparejados, enlace plancha-caja-bloques, tipos, líneas a revisar y formato de palets.');
+// A pallet: layers of 5 boxes (3 along, 2 across), 10 layers unless the model says otherwise.
+assert.deepEqual(boxDimensions('COLUMNA-NEGRA-60X40X15.5-CJ'), { length: 60, width: 40, height: 15.5 });
+assert.equal(boxDimensions('CAN-1'), null);
+assert.deepEqual(palletShape({ sku: 'BIEDRONKA-60X40X18-CJ' }), { width: 1.2, depth: 1, height: 1.8, layers: 10, boxes: 50, estimated: true });
+assert.deepEqual(palletShape({ sku: 'SUSSE-SUSI-60X40X14-CJ', boxesPerPallet: 55 }), { width: 1.2, depth: 1, height: 1.54, layers: 11, boxes: 55, estimated: false });
+assert.deepEqual(palletShape({ sku: 'BIEDRONKA-40X30X23-CJ' }), { width: 0.9, depth: 0.7, height: 2.3, layers: 10, boxes: 50, estimated: true });
+console.log('OK: modelos emparejados, enlace plancha-caja-bloques, tipos, líneas a revisar, formato de palets y forma del palet de cajas.');

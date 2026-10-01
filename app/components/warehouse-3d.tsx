@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { cajasSlots, cartonSlots, layoutWarehouse, PLAN_SCALE, PLAN_SIZE, planFeatures, type Stack } from '@/lib/warehouse-layout';
-import { formatPallets, modelKey } from '@/lib/warehouse-insights';
+import { formatPallets, modelKey, palletShape } from '@/lib/warehouse-insights';
 import type { State } from '@/lib/warehouse';
 
 export type ColorMode = 'tipo' | 'modelo' | 'revisar';
@@ -24,9 +24,10 @@ type Props = {
 
 const S = PLAN_SCALE;
 const world = (x: number, y: number) => new THREE.Vector3((x - PLAN_SIZE.width / 2) * S, 0, (y - PLAN_SIZE.depth / 2) * S);
-const LOAD = { carton: 1.0, montaje: 1.25 } as const;
+/** Planchas: a square load about a metre high. Box pallets take their size from the model. */
+const PLANCHA_LOAD = 1.0;
+const PLANCHA_FOOTPRINT = 1.08;
 const BASE = 0.14;
-const FOOTPRINT = 1.08;
 
 const COLORS = {
   carton: '#b8946a',
@@ -285,13 +286,15 @@ export default function Warehouse3D({ data, colorMode, review, highlight, select
     let i = 0;
     for (const stack of layout.stacks) {
       const center = world(stack.slot.x + stack.slot.w / 2, stack.slot.y + stack.slot.h / 2);
-      const load = LOAD[stack.area];
+      // 5 boxes per layer, 10–11 layers: about 1.2 × 1.0 m and as tall as the model's boxes.
+      const shape = stack.area === 'montaje' ? palletShape(products.get(stack.sku) ?? { sku: stack.sku }) : null;
+      const width = shape?.width ?? PLANCHA_FOOTPRINT, depth = shape?.depth ?? PLANCHA_FOOTPRINT, load = shape?.height ?? PLANCHA_LOAD;
       stack.levels.forEach((fill, level) => {
         const floorY = level * (BASE + load);
-        matrix.compose(new THREE.Vector3(center.x, floorY + BASE / 2, center.z), new THREE.Quaternion(), new THREE.Vector3(FOOTPRINT, BASE * 0.9, FOOTPRINT));
+        matrix.compose(new THREE.Vector3(center.x, floorY + BASE / 2, center.z), new THREE.Quaternion(), new THREE.Vector3(width, BASE * 0.9, depth));
         bases.setMatrixAt(i, matrix);
-        const height = load * fill - 0.04;
-        matrix.compose(new THREE.Vector3(center.x, floorY + BASE + height / 2, center.z), new THREE.Quaternion(), new THREE.Vector3(FOOTPRINT - 0.06, height, FOOTPRINT - 0.06));
+        const height = load * fill - 0.03;
+        matrix.compose(new THREE.Vector3(center.x, floorY + BASE + height / 2, center.z), new THREE.Quaternion(), new THREE.Vector3(width - 0.04, height, depth - 0.04));
         loads.setMatrixAt(i, matrix);
         instanceStack[i++] = stack;
       });
@@ -302,7 +305,7 @@ export default function Warehouse3D({ data, colorMode, review, highlight, select
     bases.computeBoundingSphere();
     state.stock.add(loads, bases);
     Object.assign(state, { loads, bases, instanceStack, dirty: true });
-  }, [layout]);
+  }, [layout, products]);
 
   // Colours follow the mode, the search and the selection without rebuilding geometry.
   useEffect(() => {

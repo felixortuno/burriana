@@ -10,8 +10,8 @@ import { madridDay, checklist, type State, type Product, type Location, type Mov
 import { useWarehouse } from '@/hooks/use-warehouse';
 import type { PublicUser } from '@/lib/identity';
 import { warehouseAreas, areaName, isWarehouseArea } from '@/lib/areas';
-import { formatPallets, locationsToReview, modelKey, modelName, modelSummary, PLANCHA_MINIMUM, productKind, stockBySku } from '@/lib/warehouse-insights';
-import { layoutWarehouse } from '@/lib/warehouse-layout';
+import { boxesPerPallet, formatPallets, locationsToReview, modelKey, modelName, modelSummary, palletShape, PLANCHA_MINIMUM, productKind, stockBySku } from '@/lib/warehouse-insights';
+import { layoutWarehouse, STACK_HEIGHT } from '@/lib/warehouse-layout';
 import AppShell, { inventoryViews, type InventoryView } from '../components/app-shell';
 import { useAppReady } from '../components/app-loader';
 import type { CameraPreset, ColorMode } from '../components/warehouse-3d';
@@ -33,6 +33,7 @@ const headings: Record<InventoryView, [string, string]> = {
 };
 const movementNames: Record<Movement['kind'], string> = { entrada: 'Entrada', salida: 'Salida', traslado: 'Traslado', consumo: 'Consumo', produccion: 'Producción', ajuste: 'Ajuste' };
 const movementTone: Record<Movement['kind'], string> = { entrada: 'green', salida: 'orange', traslado: 'blue', consumo: 'planchas', produccion: 'cajas', ajuste: 'orange' };
+const boxCount = (value: number, estimated: boolean) => `${estimated ? '≈ ' : ''}${Math.round(value).toLocaleString('es-ES')} cajas`;
 const displayDate = (d: string) => new Intl.DateTimeFormat('es-ES', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Madrid' }).format(new Date(d));
 const longDate = (day: string) => new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Madrid' }).format(new Date(day + 'T12:00:00Z'));
 
@@ -110,6 +111,8 @@ export default function Inventory({ user }: { user: PublicUser }) {
   const total = data.locations.reduce((n, l) => n + l.qty, 0);
   const inArea = (area: string) => data.locations.filter(l => l.area === area).reduce((n, l) => n + l.qty, 0);
   const completed = data.tasks.filter(t => t.done).length;
+  // Boxes in stock: pallets × boxes per pallet of each model (50 when the model has no figure).
+  const boxTotals = data.products.filter(p => productKind(p) === 'caja').reduce((total, p) => { const pallets = stock(p.sku); if (!pallets) return total; const { boxes, estimated } = boxesPerPallet(p); return { boxes: total.boxes + pallets * boxes, estimated: total.estimated || estimated }; }, { boxes: 0, estimated: false });
   const closure = data.closures.find(c => c.day === today);
   const matches = (value: string) => value.toLocaleLowerCase('es').includes(search.trim().toLocaleLowerCase('es'));
   const products = data.products.filter(p => matches(p.sku + ' ' + p.name + ' ' + p.family) && (filter === 'todos' || (filter === 'bajo' ? stock(p.sku) < p.minimum : productKind(p) === filter)));
@@ -154,7 +157,7 @@ export default function Inventory({ user }: { user: PublicUser }) {
       <div className="summary">
         <div className="figure"><small>En stock</small><strong>{formatPallets(total)}<span>palets</span></strong><span>{data.products.length} referencias</span></div>
         <div className="figure"><small><span className="dot planchas"/> Planchas</small><strong>{formatPallets(inArea('carton'))}</strong><span>Almacén de cartón</span></div>
-        <div className="figure"><small><span className="dot cajas"/> Cajas montadas</small><strong>{formatPallets(inArea('montaje'))}</strong><span>Franja inferior</span></div>
+        <div className="figure"><small><span className="dot cajas"/> Cajas montadas</small><strong>{formatPallets(inArea('montaje'))}<span>palets</span></strong><span>{boxTotals.boxes ? boxCount(boxTotals.boxes, boxTotals.estimated) : 'Franja inferior'}</span></div>
         <div className="figure"><small>Por revisar</small><strong>{review.size}</strong><span>{review.size ? 'Lecturas del cuaderno con duda' : 'Sin dudas pendientes'}</span></div>
       </div>
       <h2 className="section-title">La nave<small>Representación de las existencias sobre el plano 08.</small></h2>
@@ -186,7 +189,7 @@ export default function Inventory({ user }: { user: PublicUser }) {
         <span className="count">{grouping === 'modelo' ? `${modelRows.length} modelos` : `${products.length} referencias`}</span>
       </div>
       {grouping === 'modelo' ? (modelRows.length ? <ModelTable rows={modelRows} max={maxModel} detailed/> : <Empty title="Sin coincidencias" detail="Prueba con otro nombre de modelo o medida."/>)
-        : products.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Referencia</th><th>Tipo</th><th className="right">Palets</th><th className="right">Mínimo</th><th>Ubicaciones</th><th/></tr></thead><tbody>{products.map(p => { const kind = productKind(p); return <tr key={p.id}><td><b>{p.name}</b><small className="mono">{p.sku}</small></td><td>{kind === 'otro' ? <span className="pill">{p.family}</span> : <span className={'pill ' + (kind === 'plancha' ? 'planchas' : 'cajas')}>{kind === 'plancha' ? 'Plancha' : 'Caja'}</span>}</td><td className="right num"><b>{formatPallets(stock(p.sku))}</b>{p.boxesPerPallet ? <small>{Math.round(stock(p.sku) * p.boxesPerPallet).toLocaleString('es-ES')} cajas · {p.boxesPerPallet}/palet</small> : null}{stock(p.sku) < p.minimum && <small><span className="pill orange">Bajo mínimo</span></small>}</td><td className="right num">{p.minimum}</td><td>{data.locations.filter(l => l.sku === p.sku && l.qty).map(l => <button key={l.id} className="link" style={{ marginRight: 8 }} onClick={() => go('3d', `ubicacion=${encodeURIComponent(l.id)}`)}>{l.code}</button>)}{!data.locations.some(l => l.sku === p.sku && l.qty) && <span style={{ color: 'var(--ink-3)' }}>Sin stock</span>}</td><td className="right"><button className="icon-btn" aria-label={'Editar ' + p.sku} onClick={() => open('product', p)}><Pencil size={15}/></button></td></tr>; })}</tbody></table></div>
+        : products.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Referencia</th><th>Tipo</th><th className="right">Palets</th><th className="right">Mínimo</th><th>Ubicaciones</th><th/></tr></thead><tbody>{products.map(p => { const kind = productKind(p); return <tr key={p.id}><td><b>{p.name}</b><small className="mono">{p.sku}</small></td><td>{kind === 'otro' ? <span className="pill">{p.family}</span> : <span className={'pill ' + (kind === 'plancha' ? 'planchas' : 'cajas')}>{kind === 'plancha' ? 'Plancha' : 'Caja'}</span>}</td><td className="right num"><b>{formatPallets(stock(p.sku))}</b>{kind === 'caja' && stock(p.sku) > 0 ? <small>{boxCount(stock(p.sku) * boxesPerPallet(p).boxes, boxesPerPallet(p).estimated)} · {boxesPerPallet(p).boxes}/palet</small> : null}{stock(p.sku) < p.minimum && <small><span className="pill orange">Bajo mínimo</span></small>}</td><td className="right num">{p.minimum}</td><td>{data.locations.filter(l => l.sku === p.sku && l.qty).map(l => <button key={l.id} className="link" style={{ marginRight: 8 }} onClick={() => go('3d', `ubicacion=${encodeURIComponent(l.id)}`)}>{l.code}</button>)}{!data.locations.some(l => l.sku === p.sku && l.qty) && <span style={{ color: 'var(--ink-3)' }}>Sin stock</span>}</td><td className="right"><button className="icon-btn" aria-label={'Editar ' + p.sku} onClick={() => open('product', p)}><Pencil size={15}/></button></td></tr>; })}</tbody></table></div>
         : <Empty title={search || filter !== 'todos' ? 'Sin coincidencias' : 'Tu catálogo empieza aquí'} detail="Añade cada referencia con un SKU único. El stock se calcula a partir de los movimientos."><button className="btn primary" onClick={() => open('product')}><Plus size={15}/> Añadir referencia</button></Empty>}
       <div className="group-foot">Unidad de stock: palets, en cuartos (por ejemplo 22,5 o 6,75).</div>
     </section>}
@@ -309,6 +312,8 @@ function ThreeDView({ data, review, layout, search, setSearch, highlight, colorM
   const entry = location ? data.movements.find(m => m.location === location.code && m.kind === 'entrada') : undefined;
   const pair = product ? data.products.filter(p => p.sku !== product.sku && modelKey(p.sku) === modelKey(product.sku)) : [];
   const matchCount = highlight?.size ?? 0;
+  // Floor taken by box pallets: each position holds a stack of the model's footprint.
+  const boxArea = layout.stacks.filter(stack => stack.area === 'montaje').reduce((sum, stack) => { const shape = palletShape(productBySku.get(stack.sku) ?? { sku: stack.sku }); return sum + shape.width * shape.depth; }, 0);
   return <>
     <div className="viewer">
       <Warehouse3D data={data} colorMode={colorMode} review={review} highlight={highlight} selected={location?.id ?? null} onSelect={onSelect} preset={preset} presetNonce={presetNonce}/>
@@ -327,7 +332,8 @@ function ThreeDView({ data, review, layout, search, setSearch, highlight, colorM
         <p className="code"><span className={'dot ' + location.area}/> {location.code} · {areaName(location.area)}</p>
         <dl>
           <dt>En este bloque</dt><dd>{formatPallets(location.qty)} palets</dd>
-          {product?.boxesPerPallet ? <><dt>Cajas en el bloque</dt><dd>{Math.round(location.qty * product.boxesPerPallet).toLocaleString('es-ES')}</dd></> : null}
+          {location.area === 'montaje' && <><dt>Cajas en el bloque</dt><dd>{boxCount(location.qty * boxesPerPallet(product).boxes, boxesPerPallet(product).estimated)}</dd></>}
+          <dt>Posiciones de suelo</dt><dd>{Math.ceil(location.qty / STACK_HEIGHT)} a {STACK_HEIGHT} alturas</dd>
           <dt>Capacidad</dt><dd>{location.capacity} palets</dd>
           <dt>Total de la referencia</dt><dd>{formatPallets(stock(location.sku))} palets</dd>
           {pair.map(p => <Fragment key={p.sku}><dt>{productKind(p) === 'plancha' ? 'Planchas del modelo' : 'Cajas del modelo'}</dt><dd>{formatPallets(stock(p.sku))} palets</dd></Fragment>)}
@@ -343,9 +349,11 @@ function ThreeDView({ data, review, layout, search, setSearch, highlight, colorM
       <div className="viewer-bottom"><Segmented label="Vista" value={preset} onChange={setPreset} options={[['perspectiva', 'Perspectiva'], ['planta', 'Planta'], ['carton', 'Cartón'], ['cajas', 'Cajas']]}/></div>
     </div>
     <div className="viewer-note">
-      <span>Posición orientativa: los bloques se ordenan por código dentro de su zona del plano 08.</span>
-      <span>Apilado representado: {layout.stackHeight.carton} alturas en cartón y {layout.stackHeight.montaje} en cajas.</span>
-      {layout.overflow > 0 && <span>{layout.overflow} pilas no caben en su zona y se muestran junto a las máquinas.</span>}
+      <span>Posición orientativa: los bloques se ordenan por código dentro de su zona del plano 08, a {STACK_HEIGHT} alturas.</span>
+      <span>Planchas: {layout.positions.carton} posiciones de suelo.</span>
+      <span>Cajas: {layout.positions.montaje} posiciones, unos {Math.round(boxArea)} m² de suelo; palets de 5 cajas por capa y 10–11 capas.</span>
+      {layout.overflow > 0 && <span>{layout.overflow} posiciones de cajas no caben en la franja inferior y se muestran junto a las máquinas.</span>}
+      {layout.hidden > 0 && <span>{layout.hidden} pilas no caben en el plano y no se dibujan.</span>}
       {layout.unplaced.length > 0 && <span>{layout.unplaced.length} ubicaciones con stock no tienen zona y no se dibujan.</span>}
     </div>
   </>;
