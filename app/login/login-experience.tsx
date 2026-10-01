@@ -1,7 +1,7 @@
 'use client';
 import { ChevronsRight } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Component, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { useAppReady, useAppRevealed } from '../components/app-loader';
 import AuthPanel from './auth-panel';
@@ -23,6 +23,14 @@ type Setup = {
 };
 
 const SCENE_TIMEOUT_MS = 12_000;
+
+/** If the 3D scene throws, the still image takes its place; the form never goes with it. */
+class SceneBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onError(); }
+  render() { return this.state.failed ? null : this.props.children; }
+}
 
 const seen = () => { try { return window.localStorage.getItem(INTRO_SEEN_KEY) === '1'; } catch { return false; } };
 const markSeen = () => { try { window.localStorage.setItem(INTRO_SEEN_KEY, '1'); } catch { /* private mode */ } };
@@ -91,7 +99,7 @@ export default function LoginExperience() {
     requestAnimationFrame(() => userRef.current?.focus({ preventScroll: true }));
   }, []);
 
-  const onPanel = useCallback(() => { setPanel(true); focusForm(); }, [focusForm]);
+  const onPanel = useCallback(() => { markSeen(); setPanel(true); focusForm(); }, [focusForm]);
   const onDone = useCallback(() => markSeen(), []);
   const onFallback = useCallback(() => setSetup(current => current && { ...current, view: 'imagen' }), []);
 
@@ -133,7 +141,7 @@ export default function LoginExperience() {
         <source media="(max-aspect-ratio: 17/20)" srcSet={ASSETS.fallback.tall} />
         <img src={ASSETS.fallback.wide} alt="" decoding="async" />
       </picture>}
-      {view === 'escena' && setup && <LoginScene
+      {view === 'escena' && setup && <SceneBoundary onError={onFallback}><LoginScene
         play={revealed && ready}
         short={setup.short}
         still={setup.still}
@@ -146,7 +154,7 @@ export default function LoginExperience() {
         onPanel={onPanel}
         onDone={onDone}
         onFallback={onFallback}
-      />}
+      /></SceneBoundary>}
     </div>
 
     {view === 'escena' && !instant && !showPanel && <button type="button" className="login-skip" onClick={() => { skip(); focusForm(); }}>

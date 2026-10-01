@@ -102,8 +102,10 @@ export function buildIntro(rig: Rig, hooks: Hooks) {
   // 5 · Truck and cube to one side, the panel arrives, the background softens.
   tl.to(rig.cam, { ...shotCam(shots.final), duration: T.final - T.panel + 0.2 }, 'panel');
   tl.call(() => hooks.onPanel(), [], 'panel+=0.3');
-  tl.to(rig, { dof: 1, duration: 0.9, ease: 'power1.inOut' }, 'panel+=0.3');
   tl.to(rig, { calm: 1, duration: 0.6, ease: 'power1.inOut' }, `final-=0.4`);
+  // The background blur arrives once the camera has stopped: switching it on costs a
+  // shader compile, which Safari does in one go, and a still frame hides the pause.
+  tl.to(rig, { dof: 1, duration: 0.9, ease: 'power1.inOut' }, 'final+=0.2');
   return tl;
 }
 

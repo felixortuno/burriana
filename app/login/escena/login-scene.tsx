@@ -173,6 +173,8 @@ function Fonts() {
 export default function LoginScene({ play, short, still, paused, debug, initialTier, maxTier, apiRef, onReady, onPanel, onDone, onFallback }: SceneProps) {
   const [rig] = useState(() => createRig(typeof window === 'undefined' ? 'ancho' : layoutFor(window.innerWidth, window.innerHeight)));
   const [tier, setTier] = useState<Tier>(initialTier);
+  const tierRef = useRef(tier);
+  useEffect(() => { tierRef.current = tier; }, [tier]);
   const [mode, setMode] = useState<Mode>(still ? 'still' : 'intro');
   const [detail] = useState(maxTier >= 3 ? 'alta' as const : 'baja' as const);
   const intro = useRef<gsap.core.Timeline | null>(null);
@@ -254,19 +256,22 @@ export default function LoginScene({ play, short, still, paused, debug, initialT
       gl={{ antialias: false, powerPreference: 'high-performance', stencil: false }}
       camera={{ fov: rig.cam.fov, near: 0.1, far: 700, position: [rig.cam.x, rig.cam.y, rig.cam.z] }}
       style={{ pointerEvents: 'none' }}
+      onCreated={({ gl }) => gl.domElement.addEventListener('webglcontextlost', () => onFallback(), { once: true })}
     >
       <color attach="background" args={[SKY.fog]} />
       <fog attach="fog" args={[SKY.fog, SKY.fogNear, SKY.fogFar]} />
-      {mode === 'intro' && !debug && <PerformanceMonitor
+      {/* Only judged while the intro plays: loading and shader compiles are not the scene's frame rate. */}
+      {mode === 'intro' && play && !debug && <PerformanceMonitor
         flipflops={3}
-        // Desktops aim for 60 fps (climb above 58.5, drop under 50); phones settle for 30.
-        bounds={refresh => (refresh > 90 ? [50, 90] : [maxTier >= 3 ? 50 : 28, 58.5])}
-        onDecline={() => setTier(current => {
-          if (current === 0) { onFallback(); return current; }
-          return (current - 1) as Tier;
-        })}
-        onIncline={() => setTier(current => (current < maxTier ? (current + 1) as Tier : current))}
-        onFallback={() => setTier(current => { if (current <= 1) onFallback(); return current; })}
+        // Relative to what the screen delivers: Safari on battery runs at 30 fps and that is fine.
+        // Desktops climb above 97 % of it and drop under 82 %; phones only drop under 28 fps.
+        bounds={refresh => [maxTier >= 3 ? refresh * 0.82 : Math.min(28, refresh * 0.8), refresh * 0.97]}
+        onDecline={api => {
+          // At the lowest level, only a really slow device swaps the scene for the still image.
+          if (tierRef.current === 0) { if (api.fps < 18) onFallback(); return; }
+          setTier((tierRef.current - 1) as Tier);
+        }}
+        onIncline={() => { if (tierRef.current < maxTier) setTier((tierRef.current + 1) as Tier); }}
       />}
       {debug && <DebugBridge />}
       <CameraRig rig={rig} still={mode === 'still'} />
