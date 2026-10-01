@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "BURRIANA - GTR SOLUTIONS-",
-  description: "Gestión de inventario, ubicaciones, tareas 5S y cierre de turno.",
+  description: "Organización del almacén, viajes de producción, pedidos, camiones e inventario.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

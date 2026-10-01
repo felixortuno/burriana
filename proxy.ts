@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { checkAccess, isPublicPath, LOGIN_PATH } from "@/lib/server/access";
+import { checkSessionSignature } from '@/lib/server/session';
+
+const LOGIN_PATH = '/login';
 
 export async function proxy(request: Request) {
   const url = new URL(request.url);
-  if (isPublicPath(url.pathname)) return NextResponse.next();
+  if (url.pathname === LOGIN_PATH || url.pathname === '/api/session') return NextResponse.next();
 
-  const access = await checkAccess(request.headers);
+  // No database queries in proxy: every protected API checks current status and
+  // permissions itself. Revoked users cannot read data even with a signed token.
+  const access = await checkSessionSignature(request.headers);
   if (access === "ok") return NextResponse.next();
 
   if (access === "unconfigured") {

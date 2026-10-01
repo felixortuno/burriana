@@ -2,6 +2,10 @@
 
 Aplicación privada de gestión del almacén para el ordenador de oficina.
 
+## Guía del backend y puesta en marcha
+
+Consulta la [guía técnica y operativa del 1 de octubre de 2026](docs/BACKEND_Y_PUESTA_EN_MARCHA.md) para conocer el esquema de datos, las rutas de API, las reglas de stock, el procedimiento de carga inicial y el trabajo pendiente. Incluye los dos perfiles solicitados, **oficina y operarios**, como propuesta pendiente de implementar. También está disponible en [formato de lectura e impresión](docs/BACKEND_Y_PUESTA_EN_MARCHA.html).
+
 ## Primer uso
 
 1. En **Inventario**, crea las referencias con un SKU único, descripción, familia y mínimo en palets.
@@ -19,7 +23,7 @@ Aplicación privada de gestión del almacén para el ordenador de oficina.
 - No permite stock negativo, exceder capacidad o mezclar referencias en un bloque ocupado.
 - Salidas con albarán, responsable y confirmación de doble comprobación.
 - Entrada y traslado con etiquetado confirmado; revisión adicional cuando se declara apilado a doble altura.
-- Tareas 5S y checklist diario con nombre, fecha y hora. El nombre registrado no es una firma electrónica certificada.
+- Tareas 5S con responsable, fecha objetivo y estado. El checklist diario guarda nombre, fecha y hora del cierre; las tareas todavía no registran quién las completó ni cuándo. El nombre registrado no es una firma electrónica certificada.
 - Protocolo y checklist imprimibles; descarga de datos en JSON. La copia JSON es un archivo de datos; no hay restauración desde la interfaz.
 
 ## Datos y acceso

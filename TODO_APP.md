@@ -1,5 +1,7 @@
 # BURRIANA · Estado de la app y lista de trabajo
 
+Actualización de alcance del **01/10/2026**: se requiere uso por **oficina y operarios**. La identidad individual y los permisos de ambos perfiles pasan a ser requisito antes del uso compartido. La [guía del backend y puesta en marcha](docs/BACKEND_Y_PUESTA_EN_MARCHA.md) contiene la comprobación actual del despliegue, el modelo exacto y la matriz propuesta. La auditoría del 29/09 que sigue se conserva como referencia; sus casillas no significan que las mejoras pendientes se hayan implementado.
+
 Revisión: **29/09/2026**. Base de código: `afe4824348da15863b82862658431a54a1618442`, más los cambios de protección y despliegue descritos aquí.
 
 La app sirve como base para controlar palets completos desde oficina. Gestiona referencias, bloques, entradas/salidas/traslados, tareas 5S y cierres. El siguiente paso es asegurar la recuperación y los reintentos, preparar el inventario real y ensayar un turno completo. No hace falta reescribirla para conseguirlo.
@@ -122,7 +124,7 @@ El plano es una referencia de proyecto de 2022; no permite deducir posiciones ex
 
 ## Ampliaciones opcionales, sujetas al uso real
 
-- [ ] **Identidad individual y roles**, si varias personas van a operar. Hoy el responsable es texto libre bajo una cuenta de oficina, no una identidad autenticada ni firma certificada.
+- [ ] **Identidad individual y roles de oficina y operarios**. Requisito confirmado el 01/10 para el uso compartido; deja de ser opcional. Hoy el responsable es texto libre bajo una cuenta de oficina, no una identidad autenticada ni firma certificada. La matriz de permisos está en la [guía del backend](docs/BACKEND_Y_PUESTA_EN_MARCHA.md).
 - [ ] **Escaneo de códigos y etiquetas de movimientos**, tras un piloto con los dispositivos del almacén. Ya existe lectura de fotos para crear referencias; no confundirla con escaneo operativo completo.
 - [ ] **Palets parciales, lotes, pedidos o unidades interiores**, solo después de definir procesos y conversiones. El alcance actual los excluye expresamente.
 - [ ] **Trabajo sin conexión**, solo si es necesario: requiere una estrategia de sincronización y conflictos, no basta instalar una PWA.

@@ -1,8 +1,9 @@
-import { getPostgresWarehouseStore } from '../../db/supabase-warehouse';
+import { getWarehouseStore } from './store';
 import { createWarehouseHandlers } from './warehouse-api';
-import { authorizeRequest, validateMutationOrigin } from './access';
+import { getCurrentUser, requireRoles, validateMutationOrigin } from './access';
 
-export const { GET, POST } = createWarehouseHandlers(getPostgresWarehouseStore, {
-  authorize: authorizeRequest,
+export const { GET, POST } = createWarehouseHandlers(getWarehouseStore, {
+  authorize: (headers) => requireRoles(headers, ['administrador', 'encargado']),
   validateMutationOrigin,
+  actor: getCurrentUser,
 });

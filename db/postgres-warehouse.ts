@@ -1,4 +1,4 @@
-import { initialState, type State } from '../lib/warehouse.ts';
+import { initialState, normalizeState, type State } from '../lib/warehouse.ts';
 import type { WarehouseStore } from '../lib/server/warehouse-api.ts';
 
 export const WAREHOUSE_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS public.warehouse (
@@ -36,7 +36,7 @@ export function createPostgresWarehouseStore(client: PostgresExecutor): Warehous
       await initialize();
       const [row] = await client.query('SELECT revision, data FROM public.warehouse WHERE id = 1', []);
       if (!row) return { revision: 0, state: initialState() };
-      return { revision: Number(row.revision), state: row.data as State };
+      return { revision: Number(row.revision), state: normalizeState(row.data as State) };
     },
     async write(expectedRevision, state) {
       await initialize();

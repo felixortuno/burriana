@@ -1,4 +1,7 @@
-import { readCredentials, SESSION_COOKIE, verifySession } from "./session.ts";
+import { readCredentials, readSessionCookie, readUserSession, verifySession } from "./session.ts";
+import { ROLES, type PublicUser, type Role } from '../identity.ts';
+import { bootstrapUser, publicUser } from './users.ts';
+import { getUsersStore, localUsersForbidden } from './users-store.ts';
 
 const noStore = { "Cache-Control": "private, no-store" };
 
@@ -9,45 +12,44 @@ export function isPublicPath(pathname: string): boolean {
   return pathname === LOGIN_PATH || pathname === "/api/session";
 }
 
-function readSessionCookie(headers: Headers): string | undefined {
-  const header = headers.get("cookie");
-  if (!header) return undefined;
-  for (const part of header.split(";")) {
-    const separator = part.indexOf("=");
-    if (separator < 0) continue;
-    if (part.slice(0, separator).trim() === SESSION_COOKIE) {
-      return part.slice(separator + 1).trim();
-    }
-  }
-  return undefined;
-}
+export type AccessResult = "ok" | "unconfigured" | "unauthenticated" | "unavailable";
 
-export type AccessResult = "ok" | "unconfigured" | "unauthenticated";
+/** Resolve roles and active status from the current server record on every request. */
+export async function getCurrentUser(headers: Headers): Promise<PublicUser | null> {
+  const credentials = readCredentials();
+  if (!credentials || localUsersForbidden()) return null;
+  const token = readSessionCookie(headers);
+  // Existing administrator cookies remain valid through this upgrade.
+  if (await verifySession(token, credentials)) return bootstrapUser();
+  const identity = await readUserSession(token, credentials);
+  if (!identity) return null;
+  if (identity.id === 'bootstrap') return identity.sessionVersion === 1 ? bootstrapUser() : null;
+  const user = await getUsersStore().findById(identity.id);
+  return user?.active && user.sessionVersion === identity.sessionVersion ? publicUser(user) : null;
+}
 
 export async function checkAccess(headers: Headers): Promise<AccessResult> {
   const credentials = readCredentials();
-  if (!credentials) return "unconfigured";
-  return await verifySession(readSessionCookie(headers), credentials)
-    ? "ok"
-    : "unauthenticated";
+  if (!credentials || localUsersForbidden()) return "unconfigured";
+  try { return await getCurrentUser(headers) ? 'ok' : 'unauthenticated'; }
+  catch { return 'unavailable'; }
 }
 
 /** JSON gate for the API. Returns null when the request may proceed. */
 export async function authorizeRequest(headers: Headers): Promise<Response | null> {
-  switch (await checkAccess(headers)) {
-    case "ok":
-      return null;
-    case "unconfigured":
-      return Response.json(
-        { error: "El acceso al almacén todavía no está configurado." },
-        { status: 503, headers: noStore },
-      );
-    case "unauthenticated":
-      return Response.json(
-        { error: "Tu sesión ha caducado. Vuelve a entrar." },
-        { status: 401, headers: noStore },
-      );
+  return requireRoles(headers, ROLES);
+}
+
+export async function requireRoles(headers: Headers, roles: readonly Role[]): Promise<Response | null> {
+  if (!readCredentials() || localUsersForbidden()) {
+    return Response.json({ error: 'El acceso al almacén todavía no está configurado.' }, { status: 503, headers: noStore });
   }
+  let user: PublicUser | null;
+  try { user = await getCurrentUser(headers); }
+  catch { return Response.json({ error: 'No se puede comprobar tu perfil. Inténtalo de nuevo.' }, { status: 503, headers: noStore }); }
+  if (!user) return Response.json({ error: 'Tu sesión ha caducado. Vuelve a entrar.' }, { status: 401, headers: noStore });
+  if (!roles.includes(user.role)) return Response.json({ error: 'Tu perfil no tiene permiso para realizar esta acción.' }, { status: 403, headers: noStore });
+  return null;
 }
 
 /**

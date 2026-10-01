@@ -1,5 +1,5 @@
-// Session cookie for the office login. Web Crypto only, so the same code runs in
-// the proxy and in route handlers.
+// Signed session cookies. Kept free of database and Node imports so proxy can
+// perform an inexpensive check; route handlers also resolve the current user.
 
 /** One morning shift: 07:00 to 15:00. Signing back in each day is the intent. */
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -114,4 +114,53 @@ export async function verifySession(
 
   const expiresAt = Number(payload.slice(separator + 1));
   return Number.isSafeInteger(expiresAt) && expiresAt > now;
+}
+
+export type IdentitySession = { id: string; sessionVersion: number };
+
+/** The token identifies the account; it deliberately contains no authorization role. */
+export async function createUserSession(
+  user: IdentitySession,
+  credentials: Credentials,
+  now = Date.now(),
+): Promise<{ token: string; maxAgeSeconds: number }> {
+  const payload = JSON.stringify({ v: 2, sub: user.id, sv: user.sessionVersion, issuer: credentials.user, exp: now + SESSION_TTL_MS });
+  const key = await signingKey(`identity.v2|${credentials.password}`);
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+  return { token: `${toBase64Url(encoder.encode(payload))}.${toBase64Url(signature)}`, maxAgeSeconds: SESSION_TTL_MS / 1000 };
+}
+
+export async function readUserSession(token: string | undefined, credentials: Credentials, now = Date.now()): Promise<IdentitySession | null> {
+  if (!token || token.length > 1024) return null;
+  const [encoded, signed, ...rest] = token.split('.');
+  if (!encoded || !signed || rest.length) return null;
+  const payload = fromBase64Url(encoded);
+  const signature = fromBase64Url(signed);
+  if (!payload || !signature) return null;
+  const key = await signingKey(`identity.v2|${credentials.password}`);
+  if (!await crypto.subtle.verify('HMAC', key, signature, payload)) return null;
+  try {
+    const claims = JSON.parse(new TextDecoder().decode(payload));
+    if (!claims || claims.v !== 2 || claims.issuer !== credentials.user
+      || typeof claims.sub !== 'string' || !claims.sub || claims.sub.length > 128
+      || !Number.isSafeInteger(claims.sv) || claims.sv < 1
+      || !Number.isSafeInteger(claims.exp) || claims.exp <= now) return null;
+    return { id: claims.sub, sessionVersion: claims.sv };
+  } catch { return null; }
+}
+
+export function readSessionCookie(headers: Headers): string | undefined {
+  for (const part of (headers.get('cookie') ?? '').split(';')) {
+    const separator = part.indexOf('=');
+    if (separator > 0 && part.slice(0, separator).trim() === SESSION_COOKIE) return part.slice(separator + 1).trim();
+  }
+  return undefined;
+}
+
+/** Proxy pre-filter only. Account status and current permissions are checked in access.ts. */
+export async function checkSessionSignature(headers: Headers): Promise<'ok' | 'unconfigured' | 'unauthenticated'> {
+  const credentials = readCredentials();
+  if (!credentials || (process.env.WAREHOUSE_LOCAL_DATA_DIR && process.env.NODE_ENV === 'production')) return 'unconfigured';
+  const token = readSessionCookie(headers);
+  return (await verifySession(token, credentials) || await readUserSession(token, credentials)) ? 'ok' : 'unauthenticated';
 }

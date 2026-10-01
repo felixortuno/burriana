@@ -45,11 +45,11 @@ export default function LoginPage() {
           </div>
 
           <h1>Entrar al almacén</h1>
-          <p>Existencias, ubicaciones y cierre de turno.</p>
+          <p>Producción, expediciones y organización del turno.</p>
 
           <LoginForm />
 
-          <p className="login-foot">La sesión dura el turno, de 07:00 a 15:00.</p>
+          <p className="login-foot">Accede con tu perfil de administrador, encargado o pantalla. La sesión dura ocho horas desde el acceso.</p>
         </div>
       </section>
     </main>

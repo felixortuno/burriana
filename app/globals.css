@@ -170,3 +170,5 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;font-size:16px}button{curso
 .spin{animation:photo-spin 1s linear infinite}
 @keyframes photo-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spin{animation:none}}
+
+.management-back{display:block;margin:8px 12px 18px;padding:11px 12px;border:1px solid #557061;border-radius:7px;color:#e1edca;font-size:13px;line-height:1.4}.management-back:hover{background:#28463a}.movement-type.produccion{color:#236b45}.movement-type.consumo{color:#91622b}

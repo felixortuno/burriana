@@ -26,7 +26,8 @@ export default function LoginForm() {
         setPassword('');
         return;
       }
-      router.replace('/');
+      const session = await res.json() as { user?: { role: string } };
+      router.replace(session.user?.role === 'pantalla' ? '/pantalla' : '/');
       router.refresh();
     } catch {
       setError('No hay conexión con el servidor. Comprueba la red y vuelve a intentarlo.');

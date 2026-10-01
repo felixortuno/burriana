@@ -1,4 +1,4 @@
-import { authorizeRequest, validateMutationOrigin } from '@/lib/server/access';
+import { requireRoles, validateMutationOrigin } from '@/lib/server/access';
 import {
   ACCEPTED_TYPES,
   MAX_PHOTO_BYTES,
@@ -14,7 +14,7 @@ const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: noStore });
 
 export async function POST(request: Request) {
-  const denied = await authorizeRequest(request.headers);
+  const denied = await requireRoles(request.headers, ['administrador', 'encargado']);
   if (denied) return denied;
   const originDenied = validateMutationOrigin(request);
   if (originDenied) return originDenied;

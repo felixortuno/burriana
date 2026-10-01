@@ -25,3 +25,16 @@ assert.throws(()=>applyAction(s,{type:'location',code:'NO-ZONA',zone:'Pasillo A'
 const legacy=structuredClone(s);delete legacy.locations[0].area;const legacyBefore=JSON.stringify(legacy);assert.throws(()=>applyAction(legacy,{...base,qty:1}),/Asigna primero/);assert.equal(JSON.stringify(legacy),legacyBefore);
 const assigned=applyAction(legacy,{...legacy.locations[0],type:'location',area:'carton'});assert.equal(assigned.locations[0].area,'carton');assert.deepEqual(assigned.movements,legacy.movements);
 console.log('OK: ámbito cartón/cajas y asignación de ubicaciones anteriores sin pérdida de datos.');
+
+// Authenticated attribution cannot be forged through a movement/closure form.
+const actor={id:'manager-1',name:'Encargado real'};
+const trusted=applyAction(s,{...base,qty:1,operator:'Nombre falsificado'},new Date('2026-10-01T08:00:00Z'),actor);
+assert.equal(trusted.movements[0].operator,actor.name);
+assert.equal(trusted.movements[0].actorId,actor.id);
+const signed=applyAction(trusted,{type:'closure',checks:[true,true,true,true,true],operator:'Nombre falsificado'},new Date('2026-10-01T08:00:00Z'),actor);
+assert.equal(signed.closures[0].operator,actor.name);
+assert.equal(signed.closures[0].actorId,actor.id);
+assert.throws(()=>applyAction(s,{type:'product',id:'missing',sku:'NEW',name:'Unexpected',family:'Cartón',minimum:0}),/no encontrada/);
+assert.throws(()=>applyAction(s,{type:'location',id:'missing',code:'NEW',zone:'A',area:'carton',capacity:8}),/no encontrada/);
+assert.throws(()=>applyAction(s,{type:'task',title:'Fecha imposible',zone:'A',owner:'Equipo',due:'2026-02-30',done:false}),/Fecha/);
+console.log('OK: autor autenticado, cierre, ediciones inexistentes y calendario real.');

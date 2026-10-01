@@ -1,10 +1,11 @@
-import { validateMutationOrigin } from '@/lib/server/access';
+import { getCurrentUser, validateMutationOrigin } from '../../../lib/server/access.ts';
 import {
-  createSession,
-  matchesCredentials,
+  createUserSession,
   readCredentials,
   SESSION_COOKIE,
-} from '@/lib/server/session';
+} from '../../../lib/server/session.ts';
+import { authenticateUser } from '../../../lib/server/users.ts';
+import { localUsersForbidden } from '../../../lib/server/users-store.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,30 +28,41 @@ function cookie(value: string, maxAgeSeconds: number) {
   return parts.join('; ');
 }
 
-// One office account, so a single wrong attempt is worth slowing down. Serverless
-// instances do not share this counter: it blunts a careless script, and is not a
-// substitute for a platform rate limit.
+// This counter is local to each server instance; deployment rate limiting should
+// additionally protect public logins across instances.
 const attempts = new Map<string, { count: number; until: number }>();
 const MAX_ATTEMPTS = 8;
 const LOCKOUT_MS = 60_000;
+
+export async function GET(request: Request) {
+  if (!readCredentials() || localUsersForbidden()) return json({ error: 'El acceso al almacén todavía no está configurado.' }, 503);
+  try {
+    const user = await getCurrentUser(request.headers);
+    return user ? json({ user }, 200) : json({ error: 'Tu sesión ha caducado. Vuelve a entrar.', user: null }, 401);
+  } catch { return json({ error: 'No se puede comprobar tu perfil. Inténtalo de nuevo.' }, 503); }
+}
 
 export async function POST(request: Request) {
   const originDenied = validateMutationOrigin(request);
   if (originDenied) return originDenied;
 
   const credentials = readCredentials();
-  if (!credentials) {
+  if (!credentials || localUsersForbidden()) {
     return json({ error: 'El acceso al almacén todavía no está configurado.' }, 503);
   }
 
   const source = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'desconocido';
   const now = Date.now();
+  if (attempts.size > 1000) {
+    for (const [key, value] of attempts) if (value.until <= now) attempts.delete(key);
+    if (attempts.size > 10000) return json({ error: 'Demasiados intentos. Espera un minuto y vuelve a probar.' }, 429);
+  }
   const record = attempts.get(source);
   if (record && record.until > now && record.count >= MAX_ATTEMPTS) {
     return json({ error: 'Demasiados intentos. Espera un minuto y vuelve a probar.' }, 429);
   }
 
-  let body: { user?: unknown; password?: unknown };
+  let body: { user?: unknown; username?: unknown; password?: unknown };
   try {
     const raw = await request.text();
     if (raw.length > 4000) throw new Error('Payload too large');
@@ -59,9 +71,13 @@ export async function POST(request: Request) {
     return json({ error: 'Solicitud no válida.' }, 400);
   }
 
-  const user = typeof body?.user === 'string' ? body.user.trim() : '';
+  const submittedUser = body?.user ?? body?.username;
+  const username = typeof submittedUser === 'string' ? submittedUser.trim() : '';
   const password = typeof body?.password === 'string' ? body.password : '';
-  if (!await matchesCredentials({ user, password }, credentials)) {
+  let identity;
+  try { identity = await authenticateUser(username, password); }
+  catch { return json({ error: 'No se puede comprobar tu perfil. Inténtalo de nuevo.' }, 503); }
+  if (!identity) {
     attempts.set(source, {
       count: record && record.until > now ? record.count + 1 : 1,
       until: now + LOCKOUT_MS,
@@ -70,8 +86,9 @@ export async function POST(request: Request) {
   }
 
   attempts.delete(source);
-  const { token, maxAgeSeconds } = await createSession(credentials, now);
-  return json({ ok: true }, 200, { 'Set-Cookie': cookie(token, maxAgeSeconds) });
+  const { token, maxAgeSeconds } = await createUserSession(identity, credentials, now);
+  const { id, username: canonicalUsername, name, role } = identity;
+  return json({ ok: true, user: { id, username: canonicalUsername, name, role } }, 200, { 'Set-Cookie': cookie(token, maxAgeSeconds) });
 }
 
 export async function DELETE(request: Request) {

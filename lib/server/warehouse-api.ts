@@ -9,6 +9,7 @@ export interface WarehouseStore {
 type AccessOptions = {
   authorize?: (headers: Headers) => Promise<Response | null>;
   validateMutationOrigin?: (request: Request) => Response | null;
+  actor?: (headers: Headers) => Promise<{ id: string; name: string } | null>;
 };
 
 function json(body: unknown, status = 200) {
@@ -58,7 +59,9 @@ export function createWarehouseHandlers(getStore: () => WarehouseStore, access: 
         }
         let state: State;
         try {
-          state = applyAction(current.state, body.action);
+          const actor = await access.actor?.(request.headers);
+          if (access.actor && !actor) return json({ error: 'Vuelve a entrar para guardar.' }, 401);
+          state = applyAction(current.state, body.action, new Date(), actor ?? undefined);
         } catch (error) {
           return json({ error: error instanceof Error ? error.message : 'Revisa los datos.' }, 400);
         }
