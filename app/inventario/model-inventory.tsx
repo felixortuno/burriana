@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, ChevronDown, Download, PackageSearch, Pencil, Plus, Search, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Check, ChevronDown, Download, PackageSearch, Pencil, Plus, Search, TriangleAlert, X } from 'lucide-react';
 import { inventoryModels, inventoryTotals, type InventoryModel } from '@/lib/inventory-models';
 import { boxesPerPallet, formatPallets, productKind, stockBySku } from '@/lib/warehouse-insights';
 import type { Product, State } from '@/lib/warehouse';
@@ -21,6 +21,10 @@ type Sort = 'modelo' | 'reposicion' | 'planchas' | 'cajas';
 const kindNames = { plancha: 'Planchas', caja: 'Cajas', otro: 'Otros' };
 const units = (value: number) => value.toLocaleString('es-ES', { maximumFractionDigits: 2 });
 const minimum = (products: Product[]) => products.reduce((sum, product) => sum + product.minimum, 0);
+/** Pallets on one scale for every model, with a tick where the minimum sits. */
+function QtyBar({ value, min, max, tone }: { value: number; min: number; max: number; tone: 'planchas' | 'cajas' }) {
+  return <span className={'qty-bar ' + tone} aria-hidden="true"><i style={{ transform: `scaleX(${Math.min(1, value / max)})` }}/>{min > 0 && <em style={{ left: `${Math.min(100, (min / max) * 100)}%` }}/>}</span>;
+}
 
 function exportModels(rows: InventoryModel[]) {
   const cells: unknown[][] = [
@@ -54,6 +58,7 @@ export default function ModelInventory({ data, search, onSearch, onNew, onEdit, 
     (filter === 'todos' || (filter === 'bajo' ? row.belowMinimum : filter === 'sin-cajas' ? withoutBoxes(row) : row.noStock)))
     .sort((a, b) => (sort === 'reposicion' ? b.shortages.total - a.shortages.total : sort === 'planchas' ? b.planchas - a.planchas : sort === 'cajas' ? b.boxUnits - a.boxUnits : 0) || a.name.localeCompare(b.name, 'es', { numeric: true }));
   const otherProducts = models.flatMap(row => row.otherProducts);
+  const scale = Math.max(1, ...models.map(row => Math.max(row.planchas, row.cajas, minimum(row.planchaProducts), minimum(row.cajaProducts))));
 
   return <div className="model-inventory">
     <div className="summary inventory-totals" aria-label="Totales del inventario">
@@ -76,11 +81,11 @@ export default function ModelInventory({ data, search, onSearch, onNew, onEdit, 
       </tr></thead><tbody>{rows.map(row => <Fragment key={row.key}>
         <tr className={expanded === row.key ? 'model-selected' : ''}>
           <td><button className="model-name" aria-expanded={expanded === row.key} aria-controls={`model-${row.key}`} onClick={() => setExpanded(expanded === row.key ? null : row.key)}><ChevronDown size={15}/><span><b>{row.name}</b><small>{row.key}</small></span></button></td>
-          <td className={'right num model-quantity' + (row.shortages.plancha ? ' below' : '')}>{row.planchaProducts.length ? <><b>{formatPallets(row.planchas)}</b><small>{minimum(row.planchaProducts) ? `mín. ${formatPallets(minimum(row.planchaProducts))}` : 'sin mínimo'}</small></> : <span aria-label="Sin referencia de planchas">—</span>}</td>
-          <td className={'right num model-quantity' + (row.shortages.caja ? ' below' : '')}>{row.cajaProducts.length ? <><b>{formatPallets(row.cajas)}</b><small>{minimum(row.cajaProducts) ? `mín. ${formatPallets(minimum(row.cajaProducts))}` : 'sin mínimo'}</small></> : <span aria-label="Sin referencia de cajas">—</span>}</td>
+          <td className={'right num model-quantity' + (row.shortages.plancha ? ' below' : '')}>{row.planchaProducts.length ? <><b>{formatPallets(row.planchas)}</b><QtyBar value={row.planchas} min={minimum(row.planchaProducts)} max={scale} tone="planchas"/><small>{minimum(row.planchaProducts) ? `mín. ${formatPallets(minimum(row.planchaProducts))}` : 'sin mínimo'}</small></> : <span aria-label="Sin referencia de planchas">—</span>}</td>
+          <td className={'right num model-quantity' + (row.shortages.caja ? ' below' : '')}>{row.cajaProducts.length ? <><b>{formatPallets(row.cajas)}</b><QtyBar value={row.cajas} min={minimum(row.cajaProducts)} max={scale} tone="cajas"/><small>{minimum(row.cajaProducts) ? `mín. ${formatPallets(minimum(row.cajaProducts))}` : 'sin mínimo'}</small></> : <span aria-label="Sin referencia de cajas">—</span>}</td>
           <td className="right num model-units">{row.cajaProducts.length ? <><b>{row.boxUnitsEstimated ? '≈ ' : ''}{units(row.boxUnits)}</b>{row.boxUnitsEstimated && <small>estimadas</small>}</> : '—'}</td>
           {otherProducts.length > 0 && <td className="right num">{row.otherProducts.length ? formatPallets(row.otros) : '—'}</td>}
-          <td><span className={'pill ' + (row.belowMinimum ? 'orange' : row.noStock ? '' : 'green')}>{row.belowMinimum ? 'Reponer' : row.noStock ? 'Sin stock' : 'En stock'}</span><small>{row.belowMinimum ? `Faltan ${formatPallets(row.shortages.total)} palets para mínimos` : row.noStock ? 'Sin existencias registradas' : 'Mínimos cubiertos'}</small></td>
+          <td><span className={'pill ' + (row.belowMinimum ? 'orange' : row.noStock ? '' : 'green')}>{row.belowMinimum ? <><TriangleAlert size={12}/>Reponer</> : row.noStock ? 'Sin stock' : <><Check size={12}/>En stock</>}</span><small>{row.belowMinimum ? `Faltan ${formatPallets(row.shortages.total)} palets para mínimos` : row.noStock ? 'Sin existencias registradas' : 'Mínimos cubiertos'}</small></td>
         </tr>
         {expanded === row.key && <tr className="model-detail"><td colSpan={otherProducts.length ? 6 : 5}><div id={`model-${row.key}`} className="model-detail-content"><p>Referencias de {row.name}</p>{row.products.map(product => {
           const qty = stock.get(product.sku) ?? 0;

@@ -3,12 +3,14 @@
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowDownToLine, ArrowRight, CalendarClock, ArrowUpFromLine, Check, ChevronRight, ClipboardList, Clock3, Coffee, Factory, Monitor, Package, Pause, Play, Plus, Boxes, Search, Settings2, ShieldCheck, Sparkles, Truck, Users, Wrench, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, CalendarClock, TriangleAlert, ArrowUpFromLine, Check, ChevronRight, ClipboardList, Clock3, Coffee, Factory, Monitor, Package, Pause, Play, Plus, Boxes, Search, Settings2, ShieldCheck, Sparkles, Truck, Users, Wrench, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useWarehouse } from '@/hooks/use-warehouse';
 import { madridDay, type Location, type State } from '@/lib/warehouse';
 import { sortOperationalOrders, type ProductionSpecification, type ShiftSettings, type WorkOrder, type WorkOrderKind, type WorkOrderStatus } from '@/lib/operations';
 import { blocksForDay, nextOccurrences, priorityOrder } from '@/lib/settings';
+import { boardTicker, duration, type TickerTone } from '@/lib/board-ticker';
+import { DayBar, Meter, Ring, SplitBar } from './visuals';
 import { cajaDestinations, formatPallets, linkPlancha, modelName, pairedCaja, planchaSources, productKind, stockBySku } from '@/lib/warehouse-insights';
 import type { PublicUser } from '@/lib/identity';
 import AppShell from './app-shell';
@@ -29,6 +31,9 @@ const longDate = (day: string) => new Intl.DateTimeFormat('es-ES', { weekday: 'l
 const kindInfo = (kind: WorkOrderKind) => kinds.find(item => item.value === kind)!;
 const shortKind: Record<WorkOrderKind, string> = { viaje: 'viajes', pedido: 'pedidos', carga: 'cargas', descarga: 'descargas', mantenimiento: 'mantenimiento', limpieza: 'limpieza' };
 const shortDay = (day: string) => new Intl.DateTimeFormat('es-ES', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'Europe/Madrid' }).format(new Date(day + 'T12:00:00Z'));
+const madridClock = () => new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
+const toneIcons: Record<TickerTone, typeof Clock3> = { descanso: Coffee, aviso: Clock3, norma: CalendarClock, urgente: TriangleAlert, camion: Truck, cierre: Clock3, animo: Sparkles, info: Clock3, fuera: Clock3 };
+function ToneIcon({ tone }: { tone: TickerTone }) { const Icon = toneIcons[tone]; return <Icon size={15}/>; }
 const isOpen = (order: WorkOrder) => !['completada', 'cancelada'].includes(order.status);
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const scheduleText = (order: WorkOrder) => `${order.scheduledDate.split('-').reverse().join('/')}, ${order.scheduledTime || 'sin hora fija'}`;
@@ -38,6 +43,7 @@ export default function Management({ section, user }: { section: 'dashboard' | '
   const { data, loading, error, busy, updatedAt, refresh, save } = useWarehouse();
   useAppReady(!loading);
   const [today, setToday] = useState('');
+  const [clock, setClock] = useState('');
   const [editor, setEditor] = useState<WorkOrder | 'new' | null>(null);
   const [initialKind, setInitialKind] = useState<WorkOrderKind>('viaje');
   const [shiftOpen, setShiftOpen] = useState(false);
@@ -50,10 +56,10 @@ export default function Management({ section, user }: { section: 'dashboard' | '
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<WorkOrder | null>(null);
   const title = section === 'usuarios' ? 'Personas y accesos' : section === 'operaciones' ? 'Organización del turno' : user.role === 'administrador' ? 'El almacén, hoy' : 'Tu turno';
-  const subtitle = section === 'usuarios' ? 'Un acceso para cada persona y un perfil de consulta para la pantalla.' : 'Viajes de producción, pedidos y muelle, coordinados en un mismo lugar.';
+  const subtitle = section === 'usuarios' ? 'Un acceso para cada persona y un perfil de consulta para la pantalla.' : section === 'operaciones' ? 'Viajes de producción, pedidos y muelle, coordinados en un mismo lugar.' : '';
 
   useEffect(() => {
-    const update = () => setToday(madridDay());
+    const update = () => { setToday(madridDay()); setClock(madridClock()); };
     const timer = window.setInterval(update, 30000);
     Promise.resolve().then(update);
     return () => window.clearInterval(timer);
@@ -70,7 +76,6 @@ export default function Management({ section, user }: { section: 'dashboard' | '
   // Most urgent first: the largest shortfall against each reference's minimum.
   const low = data.products.filter(product => stock(product.sku) < product.minimum).sort((a, b) => (b.minimum - stock(b.sku)) - (a.minimum - stock(a.sku)));
   const trucks = due.filter(order => ['carga', 'descarga'].includes(order.kind));
-  const care = active.filter(order => ['mantenimiento', 'limpieza'].includes(order.kind));
   const filtered = sortOperationalOrders(all.filter(order =>
     (filter === 'todas' || (filter === 'activas' ? isOpen(order) : filter === 'hoy' ? order.scheduledDate === today : order.status === filter)) &&
     (kindFilter === 'todos' || order.kind === kindFilter) &&
@@ -81,6 +86,16 @@ export default function Management({ section, user }: { section: 'dashboard' | '
   const todayBlocks = today ? blocksForDay(data.settings.rules, today, data.shift) : [];
   const nextRule = today && !todayBlocks.length ? data.settings.rules.map(rule => ({ rule, day: nextOccurrences(rule, today, 1)[0] })).filter(entry => entry.day).sort((a, b) => a.day.localeCompare(b.day))[0] : undefined;
   const priorityText = Array.isArray(priority) ? `Prioridad: ${priority.map(kind => shortKind[kind]).join(', ')}` : 'Los viajes van primero; el encargado puede marcar una urgencia.';
+  // Inicio: the day as a bar, and the numbers behind the tiles.
+  const dayTicker = today && clock ? boardTicker({ time: clock, day: today, shift: data.shift, blocks: todayBlocks, orders: active, finishedToday: completedToday.length, seed: Number(clock.slice(0, 2)) }) : null;
+  const headline = dayTicker?.messages.find(message => message.tone !== 'info');
+  const toMinutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+  const shiftLeft = !clock ? '' : clock < data.shift.startTime ? `Empieza a las ${data.shift.startTime}` : clock >= data.shift.endTime ? 'Turno terminado' : `Quedan ${duration(toMinutes(data.shift.endTime) - toMinutes(clock))}`;
+  const runningCount = active.filter(order => order.status === 'en_curso').length;
+  const nextTruck = [...trucks].filter(order => order.scheduledTime && order.scheduledTime >= clock).sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime))[0];
+  const stockByKind = data.products.reduce((sum, product) => { const kind = productKind(product); if (kind !== 'otro') sum[kind] += stock(product.sku); return sum; }, { plancha: 0, caja: 0 });
+  const openByKind = kinds.map(kind => ({ ...kind, open: active.filter(order => order.kind === kind.value).length }));
+  const maxOpen = Math.max(1, ...openByKind.map(kind => kind.open));
   const nameOf = (sku: string) => data.products.find(product => product.sku === sku)?.name ?? sku;
 
   function newOrder(kind: WorkOrderKind = 'viaje') { setInitialKind(kind); setEditor('new'); setFailure(''); setFeedback(''); }
@@ -106,20 +121,42 @@ export default function Management({ section, user }: { section: 'dashboard' | '
 
   return <AppShell user={user} active={section === 'dashboard' ? 'inicio' : section} data={data} sync={{ updatedAt, error, busy, refresh }} actions={actions}>
     <header className="page-head">
-      <div>{today && <span className="date">{longDate(today)}</span>}<h1>{title}</h1><p>{subtitle}</p></div>
+      <div>{today && <span className="date">{longDate(today)}</span>}<h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>
       {section !== 'usuarios' && <div className="page-actions"><button className="btn secondary" onClick={() => setShiftOpen(true)} disabled={disabled}><Settings2 size={15}/> Horarios y aviso</button><button className="btn primary" onClick={() => newOrder()} disabled={disabled}><Plus size={16}/> Nueva orden</button></div>}
     </header>
     {feedback && <div className="callout success banner" role="status"><Check size={17}/>{feedback}<button className="icon-btn" style={{ marginLeft: 'auto' }} aria-label="Cerrar mensaje" onClick={() => setFeedback('')}><X size={15}/></button></div>}
     {(error || failure) && <div className="callout error banner" role="alert">{failure || error}<button className="btn secondary" onClick={refresh}>Actualizar datos</button></div>}
     {section === 'usuarios' ? <UsersPanel user={user}/> : loading ? <div className="loading" role="status">Cargando el estado del almacén…</div> : <>
-      <div className="shiftbar"><span><Clock3 size={16}/><b>Turno</b> {data.shift.startTime}–{data.shift.endTime}</span><span><Coffee size={16}/><b>Almuerzo</b> {data.shift.lunchStart && data.shift.lunchEnd ? `${data.shift.lunchStart}–${data.shift.lunchEnd}` : 'por definir'}</span>{todayBlocks.map(block => <span key={block.rule.id}><CalendarClock size={16}/><b>Hoy {block.start}–{block.end}</b> {block.rule.title}</span>)}{nextRule && <span><CalendarClock size={16}/><b>{shortDay(nextRule.day)}</b> {nextRule.rule.title}</span>}<span className="note">{priorityText}</span></div>
+      {section !== 'dashboard' && <div className="shiftbar"><span><Clock3 size={16}/><b>Turno</b> {data.shift.startTime}–{data.shift.endTime}</span><span><Coffee size={16}/><b>Almuerzo</b> {data.shift.lunchStart && data.shift.lunchEnd ? `${data.shift.lunchStart}–${data.shift.lunchEnd}` : 'por definir'}</span>{todayBlocks.map(block => <span key={block.rule.id}><CalendarClock size={16}/><b>Hoy {block.start}–{block.end}</b> {block.rule.title}</span>)}{nextRule && <span><CalendarClock size={16}/><b>{shortDay(nextRule.day)}</b> {nextRule.rule.title}</span>}<span className="note">{priorityText}</span></div>}
       {data.shift.announcement && <div className="callout blue announcement"><div><b>Aviso publicado.</b> {data.shift.announcement}</div></div>}
       {section === 'dashboard' ? <>
-        <div className="summary">
-          <div className="figure"><small>Órdenes pendientes</small><strong>{active.length}</strong><span>{count(active.filter(order => order.kind === 'viaje').length, 'viaje de producción', 'viajes de producción')}</span></div>
-          <div className="figure"><small>Camiones</small><strong>{trucks.length}</strong><span>{count(trucks.filter(order => order.kind === 'carga').length, 'carga', 'cargas')} y {count(trucks.filter(order => order.kind === 'descarga').length, 'descarga', 'descargas')}</span></div>
-          <div className="figure"><small>Completadas hoy</small><strong>{completedToday.length}</strong><span>{count(completedToday.filter(order => order.kind === 'viaje').length, 'viaje terminado', 'viajes terminados')}</span></div>
-          <div className="figure"><small>En stock</small><strong>{formatPallets(totalStock)}<span>palets</span></strong><span>{low.length ? `${count(low.length, 'referencia', 'referencias')} bajo mínimo` : count(data.products.length, 'referencia', 'referencias')}</span></div>
+        {dayTicker?.timeline && <section className="group daycard">
+          <div className="daycard-head">
+            <div><span className="kpi-label"><Clock3 size={15}/>Turno de {data.shift.startTime} a {data.shift.endTime}</span><strong>{shiftLeft}</strong></div>
+            {headline && <span className={'tone-pill tone-' + headline.tone}><ToneIcon tone={headline.tone}/>{headline.text}</span>}
+          </div>
+          <DayBar timeline={dayTicker.timeline} clock={clock}/>
+        </section>}
+        <div className="kpis">
+          <section className="kpi">
+            <span className="kpi-label"><ClipboardList size={15}/>Trabajo de hoy</span>
+            <div className="kpi-ring"><Ring value={completedToday.length} total={completedToday.length + due.length}/><div><b>{due.length}</b><small>{due.length === 1 ? 'pendiente' : 'pendientes'}</small>{runningCount > 0 && <small className="live-text"><i className="live"/>{runningCount} en marcha</small>}</div></div>
+          </section>
+          <section className="kpi">
+            <span className="kpi-label"><Truck size={15}/>Camiones hoy</span>
+            <strong className="kpi-value">{trucks.length}</strong>
+            <small>{nextTruck ? `Próximo a las ${nextTruck.scheduledTime}${nextTruck.truck ? `, ${nextTruck.truck}` : ''}` : trucks.length ? 'Sin hora fija' : 'Ninguno programado'}</small>
+          </section>
+          <section className="kpi">
+            <span className="kpi-label"><Boxes size={15}/>Stock</span>
+            <strong className="kpi-value">{formatPallets(totalStock)}<span>palets</span></strong>
+            <SplitBar parts={[{ label: 'Planchas', value: stockByKind.plancha, tone: 'planchas' }, { label: 'Cajas', value: stockByKind.caja, tone: 'cajas' }]}/>
+          </section>
+          <Link className={'kpi ' + (low.length ? 'kpi-warn' : 'kpi-ok')} href="/inventario?vista=referencias&filtro=bajo">
+            <span className="kpi-label">{low.length ? <TriangleAlert size={15}/> : <Check size={15}/>}Bajo mínimo</span>
+            <strong className="kpi-value">{low.length}</strong>
+            <small>{low.length ? (low.length === 1 ? 'Referencia por reponer' : 'Referencias por reponer') : 'Todo por encima del mínimo'}</small>
+          </Link>
         </div>
         <div className="grid-2" style={{ marginTop: 20 }}>
           <section className="group">{current ? <div className="now">
@@ -131,19 +168,27 @@ export default function Management({ section, user }: { section: 'dashboard' | '
             <div className="now-foot">{current.status === 'en_curso' ? <button className="btn secondary" disabled={busy || !!error} onClick={() => changeStatus(current, 'pausada')}><Pause size={14}/> Pausar</button> : <button className="btn secondary" disabled={busy || !!error} onClick={() => changeStatus(current, 'en_curso')}><Play size={14}/> {current.status === 'pausada' ? 'Reanudar' : 'Empezar'}</button>}<button className="btn primary" disabled={busy || !!error} onClick={() => changeStatus(current, 'completada')}><Check size={14}/> Completar</button><Link className="link" href="/operaciones" style={{ marginLeft: 'auto' }}>Todas las órdenes<ChevronRight size={15}/></Link></div>
           </div> : <Empty title="Todavía no hay trabajo para hoy" text="Crea un viaje, un pedido o una operación de muelle. Aparecerá en la pantalla del almacén."><button className="btn primary" onClick={() => newOrder()}><Plus size={15}/> Crear la primera orden</button></Empty>}</section>
           <section className="group">
-            <div className="group-head"><div><h2>Muelle</h2><p>Cargas y descargas de hoy o pendientes.</p></div><button onClick={() => newOrder('carga')} className="btn plain"><Plus size={15}/> Añadir</button></div>
-            {trucks.length ? <div className="list">{trucks.slice(0, 5).map(order => <CompactOrder key={order.id} order={order} onClick={() => setSelected(order)}/>)}</div> : <p className="quiet">Sin camiones pendientes. Programa cada carga y descarga con su hora y matrícula.</p>}
+            <div className="group-head"><div><h2>Trabajo abierto</h2></div><Link className="link" href="/operaciones">Organización<ChevronRight size={15}/></Link></div>
+            <ul className="kind-bars">{openByKind.map(({ value, label, Icon, open }) => <li key={value}><span className={'kind-tile ' + value}><Icon size={16}/></span><span className="kind-name">{label}</span><span className="kind-bar"><i style={{ transform: `scaleX(${open / maxOpen})` }}/></span><b>{open}</b></li>)}</ul>
           </section>
         </div>
         <div className="grid-2" style={{ marginTop: 20 }}>
           <section className="group">
-            <div className="group-head"><div><h2>Mantenimiento y limpieza</h2><p>Carretillas, máquinas y puestos de trabajo.</p></div><button onClick={() => newOrder('mantenimiento')} className="btn plain"><Plus size={15}/> Programar</button></div>
-            {care.length ? <div className="list">{care.slice(0, 5).map(order => <CompactOrder key={order.id} order={order} onClick={() => setSelected(order)}/>)}</div> : <p className="quiet">Define cuándo se hacen los cuidados del equipo y si deben repetirse.</p>}
+            <div className="group-head"><div><h2>Muelle</h2></div><button onClick={() => newOrder('carga')} className="btn plain"><Plus size={15}/> Añadir</button></div>
+            {trucks.length ? <ul className="dock">{trucks.slice(0, 6).map(order => <li key={order.id}><button onClick={() => setSelected(order)}>
+              <span className="dock-time">{order.scheduledTime || '—'}</span>
+              <span className={'kind-tile ' + order.kind}>{order.kind === 'carga' ? <ArrowUpFromLine size={16}/> : <ArrowDownToLine size={16}/>}</span>
+              <span className="row-main"><b>{order.truck || order.title}</b><small>{order.kind === 'carga' ? 'Carga' : 'Descarga'}{order.truck ? `: ${order.title}` : ''}</small></span>
+              <span className={'pill status ' + order.status}>{statuses[order.status]}</span>
+            </button></li>)}</ul> : <div className="empty-mini"><Truck size={22}/><span>Sin camiones programados para hoy</span></div>}
           </section>
           <section className="group">
-            <div className="group-head"><div><h2>Almacén</h2><p>{low.length ? 'Referencias por debajo del mínimo definido.' : 'Stock por encima de los mínimos.'}</p></div><Link className="link" href={low.length ? '/inventario?vista=referencias&filtro=bajo' : '/inventario'}>{low.length === 1 ? 'Ver la referencia' : low.length ? `Ver las ${low.length}` : 'Existencias'}<ChevronRight size={15}/></Link></div>
-            {low.length ? <ul className="list">{low.slice(0, 5).map(product => <li className="row" key={product.id}><div className="row-main"><b>{product.name}</b><small className="mono">{product.sku}</small></div><div className="row-end"><strong className="num">{formatPallets(stock(product.sku))}</strong>de {product.minimum}</div></li>)}</ul>
-              : <Link className="row" href="/inventario"><span className="row-icon"><Boxes size={17}/></span><span className="row-main"><b>Ver stock por modelo</b><small>Planchas, cajas y cantidades disponibles</small></span><ChevronRight size={16} color="var(--ink-3)"/></Link>}
+            <div className="group-head"><div><h2>Por reponer</h2></div>{low.length > 0 && <Link className="link" href="/inventario?vista=referencias&filtro=bajo">Ver todas<ChevronRight size={15}/></Link>}</div>
+            {low.length ? <ul className="restock">{low.slice(0, 6).map(product => <li key={product.id}>
+              <span className="restock-name">{modelName(product)}<small>{productKind(product) === 'otro' ? product.family : productKind(product)}</small></span>
+              <Meter value={stock(product.sku)} max={product.minimum} tone="warn"/>
+              <span className="restock-num"><b>{formatPallets(stock(product.sku))}</b> de {product.minimum}</span>
+            </li>)}</ul> : <div className="empty-mini ok"><Check size={22}/><span>Todo por encima del mínimo</span></div>}
           </section>
         </div>
         <section className="group" style={{ marginTop: 20 }}>

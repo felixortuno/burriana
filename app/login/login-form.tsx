@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowRight } from 'lucide-react';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -66,7 +67,7 @@ export default function LoginForm() {
         />
       </label>
       <button className="login-submit" type="submit" disabled={busy}>
-        {busy ? 'Entrando…' : 'Entrar'}
+        {busy ? 'Entrando…' : <>Entrar <ArrowRight size={18} aria-hidden="true" /></>}
       </button>
     </form>
   );

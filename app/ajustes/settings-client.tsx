@@ -263,7 +263,7 @@ const appearancePresets: [string, Appearance][] = [
 function AppearanceEditor({ saved, busy, commit }: { saved: Appearance; busy: boolean; commit: Commit }) {
   const [form, setForm] = useState(saved);
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
-  const vars = { '--accent': form.accent, '--on-accent': readableOn(form.accent), '--selection': form.selection, '--on-selection': readableOn(form.selection), '--logo-stroke': form.logoStroke, '--logo-tile': form.logoTile } as CSSProperties;
+  const vars = { '--action': form.accent, '--on-action': readableOn(form.accent), '--selection': form.selection, '--on-selection': readableOn(form.selection), '--logo-stroke': form.logoStroke, '--logo-tile': form.logoTile } as CSSProperties;
   return <div className="grid-2">
     <section className="group">
       <div className="group-head"><div><h2>Colores de la app</h2><p>Se aplican a todas las personas al guardar.</p></div></div>

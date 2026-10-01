@@ -30,7 +30,7 @@ const PLANCHA_FOOTPRINT = 1.08;
 const BASE = 0.14;
 
 const COLORS = {
-  carton: '#b8946a',
+  carton: '#c48b4c',
   montaje: '#7472e0',
   review: '#ff9f0a',
   quiet: '#d1d1d6',

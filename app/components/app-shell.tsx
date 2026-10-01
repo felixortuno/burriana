@@ -70,8 +70,8 @@ export default function AppShell({ user, active, data, sync, actions = [], child
   useEffect(() => {
     if (!appearance) return;
     const root = document.documentElement.style;
-    root.setProperty('--accent', appearance.accent);
-    root.setProperty('--on-accent', readableOn(appearance.accent));
+    root.setProperty('--action', appearance.accent);
+    root.setProperty('--on-action', readableOn(appearance.accent));
     root.setProperty('--selection', appearance.selection);
     root.setProperty('--on-selection', readableOn(appearance.selection));
     root.setProperty('--logo-stroke', appearance.logoStroke);

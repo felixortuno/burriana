@@ -51,3 +51,10 @@
   .model-table .model-detail td:first-child { position: static; }
 }
 @media print { .model-tools, .model-filters, .model-reference-actions, .model-catalog .btn { display: none; }.model-table { min-width: 0; }.model-table-wrap { overflow: visible; } }
+
+/* Bars beside the numbers: the same scale for every model, a tick at the minimum. */
+.qty-bar { position: relative; display: block; width: 112px; max-width: 100%; height: 6px; margin: 6px 0 4px auto; border-radius: 3px; background: var(--fill-2); }
+.qty-bar i { position: absolute; inset: 0; border-radius: 3px; transform-origin: left; }
+.qty-bar.planchas i { background: var(--planchas); }
+.qty-bar.cajas i { background: var(--cajas); }
+.qty-bar em { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink); }

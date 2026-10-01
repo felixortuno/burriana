@@ -27,9 +27,6 @@ export default function CuboLoader({ size = 120, ready = false, onReveal, onFini
   const callbacks = useRef({ onReveal, onFinish });
   useEffect(() => { callbacks.current = { onReveal, onFinish }; }, [onReveal, onFinish]);
   useEffect(() => { mountedAt.current = performance.now(); }, []);
-  const clipTop = useClipId('tm-clip-a-');
-  const clipBottom = useClipId('tm-clip-b-');
-  const clipDrawing = useClipId('tm-clip-d-');
 
   useEffect(() => {
     const element = root.current;
@@ -112,24 +109,35 @@ export default function CuboLoader({ size = 120, ready = false, onReveal, onFini
   }, [ready, size, target]);
 
   return <div ref={root} className="tm-loader tm-tema" data-tema={tema === 'auto' ? undefined : tema} role="status" aria-label="Cargando" style={{ '--cubo-size': `${size}px` } as CSSProperties}>
-    <div className="tm-vuelo">
-      <div className="tm-escena">
-        <div className="tm-salto">
-          <div className="tm-montaje"><div className="tm-cubo">
-            <div className="tm-cara tm-lado tm-frente"><small>GRUPO</small><span>TRIMODOS</span></div>
-            <div className="tm-cara tm-lado tm-derecha">Intraser.</div>
-            <div className="tm-cara tm-lado tm-detras">Transargi.</div>
-            <div className="tm-cara tm-lado tm-izquierda">Stinsa.</div>
-            <div className="tm-cara tm-arriba"><i className="tm-fondo"/><Emblem clip={clipDrawing} className="tm-dibujo"/><Emblem clip={clipTop} className="tm-final"/></div>
-            <div className="tm-cara tm-abajo"><i className="tm-fondo"/><Emblem clip={clipBottom}/></div>
-          </div></div>
-        </div>
-        <div className="tm-sombra"/>
-      </div>
-    </div>
+    <div className="tm-vuelo"><CubeScene/></div>
     <div className="tm-puntos" aria-hidden="true"><i/><i/><i/><i/></div>
     <p className="tm-texto" aria-hidden="true"><span>Cargando</span></p>
   </div>;
+}
+
+/** The cube itself: one company per side, the emblem on top and bottom. */
+function CubeScene() {
+  const clipTop = useClipId('tm-clip-a-');
+  const clipBottom = useClipId('tm-clip-b-');
+  const clipDrawing = useClipId('tm-clip-d-');
+  return <div className="tm-escena">
+    <div className="tm-salto">
+      <div className="tm-montaje"><div className="tm-cubo">
+        <div className="tm-cara tm-lado tm-frente"><small>GRUPO</small><span>TRIMODOS</span></div>
+        <div className="tm-cara tm-lado tm-derecha">Intraser.</div>
+        <div className="tm-cara tm-lado tm-detras">Transargi.</div>
+        <div className="tm-cara tm-lado tm-izquierda">Stinsa.</div>
+        <div className="tm-cara tm-arriba"><i className="tm-fondo"/><Emblem clip={clipDrawing} className="tm-dibujo"/><Emblem clip={clipTop} className="tm-final"/></div>
+        <div className="tm-cara tm-abajo"><i className="tm-fondo"/><Emblem clip={clipBottom}/></div>
+      </div></div>
+    </div>
+    <div className="tm-sombra"/>
+  </div>;
+}
+
+/** The same cube as a still showpiece: no entrance, a slow turn through the companies. */
+export function BrandCube({ size = 140 }: { size?: number }) {
+  return <div className="tm-loader tm-vitrina" aria-hidden="true" style={{ '--cubo-size': `${size}px` } as CSSProperties}><CubeScene/></div>;
 }
 
 function Emblem({ clip, className = '' }: { clip: string; className?: string }) {
