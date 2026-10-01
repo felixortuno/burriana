@@ -5,9 +5,9 @@ import "./globals.css";
 
 // Apple devices render San Francisco from the system stack; Inter covers the rest.
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
-// Brand faces, only for the company names on the loading cube.
+// Brand faces: the loading cube and the sign-in scene (titles in Poppins, text in Lato).
 const poppins = Poppins({ subsets: ["latin"], weight: "500", variable: "--font-poppins", display: "swap" });
-const lato = Lato({ subsets: ["latin"], weight: "300", variable: "--font-lato", display: "swap" });
+const lato = Lato({ subsets: ["latin"], weight: ["300", "400"], variable: "--font-lato", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Burriana · Grupo Trimodos",

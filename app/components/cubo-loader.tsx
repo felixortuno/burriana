@@ -135,11 +135,6 @@ function CubeScene() {
   </div>;
 }
 
-/** The same cube as a still showpiece: no entrance, a slow turn through the companies. */
-export function BrandCube({ size = 140 }: { size?: number }) {
-  return <div className="tm-loader tm-vitrina" aria-hidden="true" style={{ '--cubo-size': `${size}px` } as CSSProperties}><CubeScene/></div>;
-}
-
 function Emblem({ clip, className = '' }: { clip: string; className?: string }) {
   return <svg className={`tm-emblema ${className}`} viewBox="0 0 100 100" aria-hidden="true">
     <defs><clipPath id={clip}><rect x="2.25" y="2.25" width="95.5" height="95.5"/></clipPath></defs>

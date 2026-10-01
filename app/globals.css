@@ -486,49 +486,7 @@ a.row { color: inherit; text-decoration: none; }
 /* ─── Toasts ───────────────────────────────────────────────────────────── */
 [data-sonner-toast] { border-radius: 14px !important; border: 0 !important; box-shadow: var(--shadow-float) !important; font-family: var(--font) !important; }
 
-/* ─── Sign in ──────────────────────────────────────────────────────────── */
-/* A very faint pattern of small isometric boxes: cardboard, quietly. */
-.signin {
-  --boxes-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' fill='none' stroke='%23D9E33B' stroke-width='1' stroke-linejoin='round'%3E%3Cpath d='M18 8l8.66 5v10L18 28l-8.66-5V13zM9.34 13 18 18l8.66-5M18 18v10M54 44l8.66 5v10L54 64l-8.66-5V49zM45.34 49 54 54l8.66-5M54 54v10'/%3E%3C/svg%3E");
-  --boxes-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' fill='none' stroke='%231C1C1A' stroke-width='1' stroke-linejoin='round'%3E%3Cpath d='M18 8l8.66 5v10L18 28l-8.66-5V13zM9.34 13 18 18l8.66-5M18 18v10M54 44l8.66 5v10L54 64l-8.66-5V49zM45.34 49 54 54l8.66-5M54 54v10'/%3E%3C/svg%3E");
-  min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); background: var(--canvas);
-}
-.signin-brand { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 72px; padding: 56px 40px; background: var(--tm-negro); color: #F4F4EF; isolation: isolate; }
-.signin-brand::before { content: ""; position: absolute; inset: 0; z-index: -1; background-image: var(--boxes-dark); opacity: 0.09; }
-.signin-brand::after { content: ""; position: absolute; inset: auto -20% -40% -20%; height: 70%; z-index: -1; background: radial-gradient(closest-side, rgba(217, 227, 59, 0.14), transparent); }
-.signin-cube { padding-top: 24px; }
-.signin-brand-text { display: grid; justify-items: center; gap: 6px; text-align: center; }
-.signin-brand-text b { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
-.signin-brand-text > span { font-size: 15px; color: rgba(244, 244, 239, 0.66); }
-.signin-brand-text ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; list-style: none; margin: 12px 0 0; padding: 0; font-size: 13px; color: rgba(244, 244, 239, 0.8); }
-.signin-brand-text li { display: inline-flex; align-items: center; gap: 7px; }
-.signin-brand-text li i { width: 9px; height: 9px; border-radius: 3px; }
-.signin-panel { position: relative; display: grid; place-items: center; padding: 48px 24px; isolation: isolate; }
-.signin-panel::before { content: ""; position: absolute; inset: 0; z-index: -1; background-image: var(--boxes-light); opacity: 0.035; }
-.signin-card { width: 100%; max-width: 380px; }
-.signin .glyph { width: 52px; height: 52px; border-radius: 14px; margin: 0 0 22px; }
-.signin h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.026em; line-height: 1.15; }
-.signin-card > p { font-size: 16px; color: var(--ink-2); margin-top: 6px; }
-.login-form { display: grid; gap: 16px; margin-top: 30px; }
-.login-field { display: grid; gap: 7px; }
-.login-field span { font-size: 13px; font-weight: 600; color: var(--ink); }
-.login-field input { width: 100%; height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid #c7c7cc; background: #fff; font-size: 16px; color: var(--ink); outline: 0; transition: border-color 0.15s, box-shadow 0.15s; }
-.login-field input:hover { border-color: #aeaeb2; }
-.login-field input:focus { border-color: var(--tm-negro); box-shadow: 0 0 0 4px rgba(217, 227, 59, 0.45); }
-.login-submit { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 50px; margin-top: 6px; border-radius: 12px; background: var(--tm-negro); color: #fff; font-size: 16px; font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 -2px 0 rgba(217, 227, 59, 0.9); transition: transform 0.1s, background-color 0.15s; }
-.login-submit:hover:not(:disabled) { background: #000; }
-.login-submit:active:not(:disabled) { transform: translateY(1px); }
-.login-submit:focus-visible { outline: 3px solid rgba(217, 227, 59, 0.9); outline-offset: 3px; }
-.login-error { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--red-tint); color: #a3000f; font-size: 14px; line-height: 1.45; }
-.login-foot { font-size: 13px; color: var(--ink-3); line-height: 1.55; margin: 22px 0 0; }
-@media (max-width: 900px) {
-  .signin { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
-  .signin-brand { flex-direction: row; gap: 28px; padding: 28px 24px; justify-content: flex-start; }
-  .signin-cube { padding: 0 8px 10px; transform: scale(0.6); transform-origin: left center; margin-right: -60px; }
-  .signin-brand-text { justify-items: start; text-align: left; }
-  .signin-brand-text ul { justify-content: flex-start; }
-  .signin-panel { align-items: start; padding-top: 32px; }
-}
+/* ─── Sign in: app/login/login.css ───────────────────────────────────── */
 
 /* ─── Label photo (new reference) ──────────────────────────────────────── */
 .photo-read { margin-bottom: 18px; padding: 14px; border-radius: 14px; background: var(--canvas); }

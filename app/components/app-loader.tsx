@@ -1,9 +1,11 @@
 'use client';
+import { usePathname } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import CuboLoader from './cubo-loader';
 
 type Registry = { hold: () => () => void };
 const LoadingContext = createContext<Registry | null>(null);
+const RevealedContext = createContext(true);
 
 /**
  * Keeps the loading screen up while the page still has work in flight.
@@ -16,6 +18,11 @@ export function useAppReady(isReady: boolean) {
     if (!registry || isReady) return;
     return registry.hold();
   }, [registry, isReady]);
+}
+
+/** True once the loading screen has started to fade and the page can be seen. */
+export function useAppRevealed() {
+  return useContext(RevealedContext);
 }
 
 /**
@@ -50,12 +57,16 @@ export default function AppLoader({ children }: { children: ReactNode }) {
 
   const reveal = useCallback(() => setRevealed(true), []);
   const finish = useCallback(() => setFinished(true), []);
+  // The sign-in scene is dark, so its loading screen is too, whatever the system theme.
+  const dark = usePathname() === '/login';
 
   return <LoadingContext.Provider value={finished ? null : registry}>
-    <div className="app-root" inert={!revealed}>{children}</div>
-    {!finished && <div className={'tm-pantalla tm-tema' + (revealed ? ' revelando' : '')}>
+    <RevealedContext.Provider value={revealed}>
+      <div className="app-root" inert={!revealed}>{children}</div>
+    </RevealedContext.Provider>
+    {!finished && <div className={'tm-pantalla tm-tema' + (revealed ? ' revelando' : '')} data-tema={dark ? 'oscuro' : undefined}>
       <div className="tm-pantalla-fondo"/>
-      <CuboLoader size={112} ready={ready} onReveal={reveal} onFinish={finish}/>
+      <CuboLoader size={112} ready={ready} onReveal={reveal} onFinish={finish} tema={dark ? 'oscuro' : 'auto'}/>
     </div>}
     <noscript><style>{'.tm-pantalla{display:none}'}</style></noscript>
   </LoadingContext.Provider>;

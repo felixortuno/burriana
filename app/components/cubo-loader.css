@@ -151,9 +151,3 @@
 .tm-pantalla-fondo { transition: opacity 0.45s ease-out; }
 .tm-pantalla.revelando { pointer-events: none; }
 .tm-pantalla.revelando .tm-pantalla-fondo { opacity: 0; }
-
-/* Showpiece cube (sign-in): already assembled, turning slowly, no loading text. */
-.tm-vitrina { --tm-bucle: 0s; --tm-ciclo: 12s; --tm-sombra: rgba(217, 227, 59, 0.18); }
-.tm-vitrina .tm-montaje, .tm-vitrina .tm-lado, .tm-vitrina .tm-fondo, .tm-vitrina .tm-final, .tm-vitrina [data-trazo] { animation: none; }
-.tm-vitrina .tm-dibujo { display: none; }
-.tm-vitrina .tm-sombra { animation: tm-sombra var(--tm-ciclo) infinite; }
