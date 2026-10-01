@@ -62,3 +62,41 @@
 .wb-rule span{color:var(--wb-muted);font-size:14px}
 .wb-rule-now{background:var(--wb-lime);color:var(--wb-on-accent)}
 .wb-rule-now svg,.wb-rule-now b,.wb-rule-now span{color:var(--wb-on-accent)}
+
+/* ─── Valla del turno: marcador, cartel LED de estadio y barra del día ─── */
+.wb-ticker{display:flex;flex-direction:column;gap:14px;margin-bottom:18px}
+.wb-ticker-row{display:flex;gap:14px;align-items:stretch;min-height:118px}
+.wb-score{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:230px;padding:12px 22px;border-radius:20px;background:var(--wb-panel)}
+.wb-score-title{font-size:12px;font-weight:600;color:var(--wb-muted)}
+.wb-score-digits{display:flex;align-items:baseline;gap:14px;font-variant-numeric:tabular-nums}
+.wb-score-digits b{font-size:52px;font-weight:800;line-height:1;letter-spacing:-0.03em}
+.wb-score-digits b:first-child{color:var(--wb-lime)}
+.wb-score-digits i{font-style:normal;font-size:34px;color:var(--wb-faint)}
+.wb-score-labels{display:flex;gap:30px;font-size:12px;color:var(--wb-muted)}
+.wb-score-live{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;color:var(--wb-lime)}
+.wb-score-live i{width:7px;height:7px;border-radius:50%;background:var(--wb-lime)}
+/* The LED board: dark panel, glowing type and a dot grid over it, like a stadium perimeter board. */
+.wb-led{--led:var(--wb-lime);--led-bg:#050505;position:relative;flex:1;min-width:0;display:flex;align-items:center;overflow:hidden;border-radius:20px;background:var(--led-bg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--led) 25%,transparent),inset 0 0 40px rgba(0,0,0,.6);transition:background-color .4s}
+.wb-led::after{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(circle at center,transparent 55%,rgba(0,0,0,.55) 56%);background-size:5px 5px}
+.wb-led-text{position:absolute;left:0;white-space:nowrap;will-change:transform;font-size:clamp(34px,3.4vw,58px);font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--led);text-shadow:0 0 14px color-mix(in srgb,var(--led) 70%,transparent),0 0 3px var(--led)}
+.wb-led[data-tone="aviso"],.wb-led[data-tone="cierre"],.wb-led[data-tone="camion"]{--led:#1d1300;--led-bg:#ff9f0a}
+.wb-led[data-tone="descanso"],.wb-led[data-tone="norma"]{--led:var(--wb-on-accent);--led-bg:var(--wb-lime)}
+.wb-led[data-tone="urgente"]{--led:#fff;--led-bg:#d70015}
+.wb-led[data-tone="aviso"] .wb-led-text,.wb-led[data-tone="cierre"] .wb-led-text,.wb-led[data-tone="camion"] .wb-led-text,.wb-led[data-tone="descanso"] .wb-led-text,.wb-led[data-tone="norma"] .wb-led-text,.wb-led[data-tone="urgente"] .wb-led-text{text-shadow:none}
+.wb-led[data-tone="aviso"],.wb-led[data-tone="urgente"]{animation:wb-led-pulse 1.6s ease-in-out infinite}
+/* Each new message enters with a sweep of light across the board. */
+.wb-led-wipe{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--led) 45%,transparent) 45%,color-mix(in srgb,var(--led) 45%,transparent) 55%,transparent);transform:translateX(-100%);animation:wb-led-wipe .9s cubic-bezier(.4,0,.2,1) both}
+@keyframes wb-led-wipe{to{transform:translateX(100%)}}
+@keyframes wb-led-pulse{50%{opacity:.86}}
+/* The bar of the day: shift start to end, lunch and fixed blocks marked, and now. */
+.wb-day{display:flex;align-items:center;gap:14px;font-size:14px;color:var(--wb-muted);font-variant-numeric:tabular-nums}
+.wb-day-edge{font-weight:600}
+.wb-day-track{position:relative;flex:1;height:14px;border-radius:7px;background:var(--wb-panel)}
+.wb-day-fill{position:absolute;inset:0;border-radius:7px;transform-origin:left;background:color-mix(in srgb,var(--wb-lime) 38%,var(--wb-panel))}
+.wb-day-seg{position:absolute;top:-4px;bottom:-4px;border-radius:6px;background:color-mix(in srgb,var(--wb-white) 22%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--wb-white) 35%,transparent)}
+.wb-day-seg.norma{background:color-mix(in srgb,#ff9f0a 35%,transparent);box-shadow:inset 0 0 0 1px #ff9f0a}
+.wb-day-seg em{position:absolute;top:24px;left:0;font-style:normal;font-size:12px;white-space:nowrap;color:var(--wb-soft)}
+.wb-day-now{position:absolute;top:-9px;bottom:-9px;width:4px;margin-left:-2px;border-radius:2px;background:var(--wb-white);box-shadow:0 0 0 3px var(--wb-bg)}
+.wb-day-now b{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);font-size:13px;color:var(--wb-white)}
+@media (prefers-reduced-motion:reduce){.wb-led,.wb-led-wipe{animation:none}.wb-led-wipe{display:none}.wb-led-text{position:static;padding:0 24px;overflow:hidden;text-overflow:ellipsis;max-width:100%}}
+@media (max-width:900px){.wb-ticker-row{flex-direction:column}.wb-score{min-width:0;flex-direction:row;gap:16px}.wb-led{min-height:84px}}

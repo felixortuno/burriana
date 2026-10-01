@@ -3,14 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowDownLeft, ArrowUpRight, ArrowRight, Check, Clock3, Coffee,
+  ArrowDownLeft, ArrowUpRight, ArrowRight, Check, Clock3,
   Factory, ListOrdered, LogOut, Maximize, Megaphone, Package,
-  Radio, Settings2, Sparkles, Truck, Wrench, WifiOff, CalendarClock,
+  Radio, Settings2, Sparkles, Truck, Wrench, WifiOff,
 } from 'lucide-react';
 import Logo from '../components/logo';
 import { useAppReady } from '../components/app-loader';
 import { sortOperationalOrders, type ShiftSettings, type WorkOrder, type WorkOrderKind } from '@/lib/operations';
 import { blocksForDay, priorityOrder, readableOn, type BoardTheme, type ShiftRule } from '@/lib/settings';
+import { boardTicker } from '@/lib/board-ticker';
+import ShiftTicker from './ticker';
 
 const POLL_MS = 10_000;
 const ROTATE_MS = 15_000;
@@ -64,11 +66,6 @@ function overdue(order: WorkOrder, today: string, time: string) {
   return order.status === 'pendiente' && !!order.scheduledDate && (
     order.scheduledDate < today || (order.scheduledDate === today && !!order.scheduledTime && order.scheduledTime < time)
   );
-}
-
-function withinTime(time: string, start: string, end: string) {
-  if (!time || !start || !end || start === end) return false;
-  return start < end ? time >= start && time < end : time >= start || time < end;
 }
 
 function orderIcon(kind: WorkOrder['kind']) {
@@ -261,11 +258,9 @@ export default function WarehouseBoard() {
   const focus = focusSlides.length ? focusSlides[cycle % focusSlides.length] : null;
   const shift = snapshot?.shift;
   const announcementPages = instructionPages(shift?.announcement ?? '');
-  const lunch = !!shift && withinTime(current.time, shift.lunchStart, shift.lunchEnd);
-  const shiftActive = !!shift && withinTime(current.time, shift.startTime, shift.endTime);
   const blocks = shift && current.day ? blocksForDay(snapshot?.settings?.rules ?? [], current.day, shift) : [];
-  const blockNow = blocks.find(block => withinTime(current.time, block.start, block.end));
-  const blockNext = blocks.find(block => current.time < block.start);
+  // The stadium board: what to say now, given the shift, its blocks and the open work.
+  const ticker = snapshot && shift && current.time ? boardTicker({ time: current.time, day: current.day, shift, blocks, orders: active, finishedToday, seed: Math.floor((currentTimestamp ?? 0) / 600_000) }) : null;
   const theme = snapshot?.settings?.board;
   const logo = snapshot?.settings?.logo;
   const themeStyle = theme ? Object.fromEntries([
@@ -284,14 +279,9 @@ export default function WarehouseBoard() {
     {stale && <div className="wb-alert" role="alert"><WifiOff aria-hidden="true" /><div><strong>{snapshot ? 'Atención: la información puede haber cambiado.' : 'No se pueden cargar los trabajos.'}</strong><span>{error || 'Han pasado más de 30 segundos sin una actualización.'} {lastSuccess !== null && `Última conexión: ${registeredAt(new Date(lastSuccess + clockOffset).toISOString(), current.day)}.`}</span></div></div>}
     {notice && <div className="wb-notice" role="status">{notice}</div>}
 
-    <section className="wb-shift-strip" aria-label="Turno y almuerzo">
-      <div className="wb-shift-info"><span className={`wb-dot${shiftActive ? '' : ' wb-dot-muted'}`} /><div><span className="wb-eyebrow">{shiftActive ? 'Turno en marcha' : 'Horario de turno'}</span><strong>{shift ? `${shift.startTime} — ${shift.endTime}` : '—'}</strong></div></div>
-      <div className={`wb-lunch${lunch ? ' wb-lunch-active' : ''}`}><Coffee aria-hidden="true" /><div><span className="wb-eyebrow">{lunch ? 'Ahora · almuerzo' : 'Pausa de almuerzo'}</span><strong>{!snapshot ? '—' : shift?.lunchStart && shift?.lunchEnd ? `${shift.lunchStart} — ${shift.lunchEnd}` : 'Pendiente de fijar'}</strong></div>{lunch && <span className="wb-lunch-return">Vuelta a las {shift?.lunchEnd}</span>}</div>
-      <div className="wb-counts"><div><b>{snapshot ? running.length : '—'}</b><span>en marcha</span></div><div><b>{snapshot ? active.length : '—'}</b><span>abiertos</span></div><div><b>{snapshot ? finishedToday : '—'}</b><span>hechos hoy</span></div></div>
-    </section>
+    {ticker && <ShiftTicker state={ticker} time={current.time} done={finishedToday} open={active.length} running={running.length} />}
 
     <div className={`wb-announcement${shift?.announcement ? ' wb-announcement-filled' : ''}`}><Megaphone aria-hidden="true" /><span>Aviso del encargado{announcementPages.length > 1 && ` · ${cycle % announcementPages.length + 1}/${announcementPages.length}`}</span><p>{!snapshot ? 'Esperando información del almacén.' : announcementPages[cycle % announcementPages.length] || 'Sin avisos para el turno.'}</p></div>
-    {(blockNow || blockNext) && <div className={`wb-rule${blockNow ? ' wb-rule-now' : ''}`} role="status"><CalendarClock size={26} aria-hidden="true" /><p>{blockNow ? <><b>Ahora: {blockNow.rule.title}</b>, hasta las {blockNow.end}.</> : <><b>Hoy de {blockNext!.start} a {blockNext!.end}: {blockNext!.rule.title}</b>.</>} {(blockNow ?? blockNext)!.rule.notes && <span>{(blockNow ?? blockNext)!.rule.notes}</span>}</p></div>}
 
     {!snapshot && !error ? <section className="wb-loading" role="status"><Radio /><h1>Preparando la pantalla</h1><p>Consultando los trabajos del almacén…</p></section> : snapshot && <div className="wb-grid">
       <div className="wb-production-column">
