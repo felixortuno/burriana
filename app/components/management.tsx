@@ -45,7 +45,7 @@ export default function Management({ section, user }: { section: 'dashboard' | '
   const [today, setToday] = useState('');
   const [clock, setClock] = useState('');
   const [editor, setEditor] = useState<WorkOrder | 'new' | null>(null);
-  const [initialKind, setInitialKind] = useState<WorkOrderKind>('viaje');
+  const [initialKind, setInitialKind] = useState<WorkOrderKind>('pedido');
   const [shiftOpen, setShiftOpen] = useState(false);
   const [completion, setCompletion] = useState<WorkOrder | null>(null);
   const [cancelOrder, setCancelOrder] = useState<WorkOrder | null>(null);
@@ -98,7 +98,7 @@ export default function Management({ section, user }: { section: 'dashboard' | '
   const maxOpen = Math.max(1, ...openByKind.map(kind => kind.open));
   const nameOf = (sku: string) => data.products.find(product => product.sku === sku)?.name ?? sku;
 
-  function newOrder(kind: WorkOrderKind = 'viaje') { setInitialKind(kind); setEditor('new'); setFailure(''); setFeedback(''); }
+  function newOrder(kind: WorkOrderKind = 'pedido') { setInitialKind(kind); setEditor('new'); setFailure(''); setFeedback(''); }
   async function commit(action: Record<string, unknown>, message: string) {
     setFailure(''); setFeedback('');
     try { if (await save(action)) { setFeedback(message); return true; } }
@@ -215,7 +215,7 @@ export default function Management({ section, user }: { section: 'dashboard' | '
     {shiftOpen && <ShiftEditor shift={data.shift} busy={busy} failure={failure} onClose={() => setShiftOpen(false)} onSave={async shift => { if (await commit({ type: 'shift', ...shift }, 'Horarios y aviso publicados.')) setShiftOpen(false); }}/>}
     {completion && <CompletionDialog order={completion} data={data} busy={busy} failure={failure} onClose={() => setCompletion(null)} onSave={async action => { if (await commit(action, completion.kind === 'viaje' ? 'Viaje completado. Consumo y producción registrados en el inventario.' : 'Orden completada.')) setCompletion(null); }}/>}
     {cancelOrder && <Modal title="Cancelar orden" description="La orden conserva su historial y deja de aparecer entre los trabajos activos." onClose={() => setCancelOrder(null)}><p className="dialog-copy">{cancelOrder.title}</p><div className="dialog-actions"><button className="btn secondary" onClick={() => setCancelOrder(null)}>Volver</button><button className="btn danger" disabled={busy} onClick={async () => { if (await commit({ type: 'workOrderStatus', id: cancelOrder.id, status: 'cancelada' }, 'Orden cancelada.')) setCancelOrder(null); }}>Cancelar orden</button></div></Modal>}
-    {selected && <Modal title={selected.title} description={`${kindInfo(selected.kind).label}, ${statuses[selected.status].toLowerCase()}`} onClose={() => setSelected(null)}><dl className="details"><dt>Programación</dt><dd>{scheduleText(selected)}</dd><dt>Registrada</dt><dd>{dateTime(selected.createdAt)}</dd><dt>Referencia</dt><dd>{selected.reference || 'Sin referencia'}</dd><dt>Asignada a</dt><dd>{selected.assignedTo || 'Equipo de almacén'}</dd>{selected.truck && <><dt>Camión</dt><dd>{selected.truck}</dd></>}<dt>Instrucciones</dt><dd>{selected.instructions || 'Sin instrucciones adicionales'}</dd>{selected.completedAt && <><dt>Completada</dt><dd>{dateTime(selected.completedAt)}</dd></>}</dl>{selected.production && <div style={{ marginTop: 16 }}><ProductionLine production={selected.production} nameOf={nameOf}/></div>}<h3 className="detail-title">Trazabilidad</h3><ol className="events">{selected.events.map(event => <li key={event.id}><b>{statuses[event.status]}</b><span>{event.actorName}, {dateTime(event.date)}</span></li>)}</ol></Modal>}
+    {selected && <Modal title={selected.title} description={`${kindInfo(selected.kind).label}, ${statuses[selected.status].toLowerCase()}`} onClose={() => setSelected(null)}><dl className="details"><dt>Programación</dt><dd>{scheduleText(selected)}</dd><dt>Registrada</dt><dd>{dateTime(selected.createdAt)}</dd><dt>Referencia</dt><dd>{selected.reference || 'Sin referencia'}</dd>{selected.kind === 'pedido' && selected.boxSku && <><dt>Caja</dt><dd>{selected.boxQuantity} · {nameOf(selected.boxSku)}</dd></>}{selected.assignedTo && <><dt>Asignada a</dt><dd>{selected.assignedTo}</dd></>}{selected.truck && <><dt>Camión</dt><dd>{selected.truck}</dd></>}<dt>Instrucciones</dt><dd>{selected.instructions || 'Sin instrucciones adicional'}</dd>{selected.completedAt && <><dt>Completada</dt><dd>{dateTime(selected.completedAt)}</dd></>}</dl>{selected.production && <div style={{ marginTop: 16 }}><ProductionLine production={selected.production} nameOf={nameOf}/></div>}<h3 className="detail-title">Trazabilidad</h3><ol className="events">{selected.events.map(event => <li key={event.id}><b>{statuses[event.status]}</b><span>{event.actorName}, {dateTime(event.date)}</span></li>)}</ol></Modal>}
   </AppShell>;
 }
 
@@ -228,7 +228,7 @@ function OrderRow({ order, nameOf, today, busy, onEdit, onDetail, onStatus }: { 
     <div className="order-body">
       <div className="order-tags"><span className="pill">{label}</span><span className={'pill status ' + order.status}>{statuses[order.status]}</span>{order.priority === 'urgente' && <span className="pill red">Urgente</span>}{isOpen(order) && order.scheduledDate < today && <span className="pill orange">De un día anterior</span>}</div>
       <button className="order-title" onClick={onDetail}>{order.title}</button>
-      <div className="order-meta"><span><Clock3 size={13}/>{scheduleText(order)}</span>{order.reference && <span>Ref. {order.reference}</span>}{order.truck && <span><Truck size={13}/>{order.truck}</span>}<span><Users size={13}/>{order.assignedTo || 'Equipo de almacén'}</span></div>
+      <div className="order-meta"><span><Clock3 size={13}/>{scheduleText(order)}</span>{order.reference && <span>Ref. {order.reference}</span>}{order.boxSku && <span>{order.boxQuantity} cajas · {nameOf(order.boxSku)}</span>}{order.truck && <span><Truck size={13}/>{order.truck}</span>}<span><Users size={13}/>{order.assignedTo || 'Equipo de almacén'}</span></div>
       {order.instructions && <p>{order.instructions}</p>}
       {order.production && <ProductionLine production={order.production} nameOf={nameOf}/>}
       {order.repeatEveryDays > 0 && <small className="order-repeat">Se repite cada {order.repeatEveryDays} días tras completarse.</small>}
@@ -300,7 +300,7 @@ function ProductionFields({ value, onChange, data, onPlancha }: { value: Product
 const emptyProduction = (): ProductionSpecification => ({ inputSku: '', inputLocation: '', inputPallets: 1, outputSku: '', outputLocation: '', outputPallets: 1 });
 
 function OrderEditor({ order, kind, data, busy, failure, onClose, onSave }: { order?: WorkOrder; kind: WorkOrderKind; data: State; busy: boolean; failure: string; onClose: () => void; onSave: (action: Record<string, unknown>) => Promise<boolean> }) {
-  const [form, setForm] = useState({ kind: order?.kind ?? kind, title: order?.title ?? '', reference: order?.reference ?? '', truck: order?.truck ?? '', assignedTo: order?.assignedTo ?? '', instructions: order?.instructions ?? '', scheduledDate: order?.scheduledDate ?? madridDay(), scheduledTime: order?.scheduledTime ?? '', priority: order?.priority ?? 'normal', repeatEveryDays: order?.repeatEveryDays ?? 0 });
+  const [form, setForm] = useState({ kind: order?.kind ?? kind, title: order?.title ?? '', reference: order?.reference ?? '', truck: order?.truck ?? '', assignedTo: order?.assignedTo ?? '', instructions: order?.instructions ?? '', boxSku: order?.boxSku ?? '', boxQuantity: order?.boxQuantity ?? 1, scheduledDate: order?.scheduledDate ?? madridDay(), scheduledTime: order?.scheduledTime ?? '', priority: order?.priority ?? 'normal', repeatEveryDays: order?.repeatEveryDays ?? 0 });
   const [production, setProduction] = useState(order?.production ?? emptyProduction());
   const [suggested, setSuggested] = useState('');
   const field = (key: string, value: string | number) => setForm(previous => ({ ...previous, [key]: value }));

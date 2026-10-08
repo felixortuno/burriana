@@ -32,6 +32,8 @@ export type WorkOrder = {
   truck: string;
   assignedTo: string;
   instructions: string;
+  boxSku?: string;
+  boxQuantity?: number;
   scheduledDate: string;
   scheduledTime: string;
   priority: WorkOrderPriority;
@@ -236,6 +238,14 @@ export function applyOperationalAction(
     if (production && kind !== 'viaje') {
       throw new Error('Solo un viaje de producción puede consumir planchas y producir cajas.');
     }
+    const boxSku = action.boxSku === undefined ? existing?.boxSku : text(action.boxSku ?? '', 'Referencia de caja', false);
+    const boxQuantity = action.boxQuantity === undefined ? existing?.boxQuantity : Number(action.boxQuantity);
+    if (kind === 'pedido') {
+      if (!boxSku) throw new Error('Indica la referencia de caja del pedido.');
+      if (!Number.isSafeInteger(boxQuantity) || boxQuantity < 1 || boxQuantity > 1000000) {
+        throw new Error('La cantidad de cajas debe ser un entero entre 1 y 1.000.000.');
+      }
+    }
     const fields = {
       kind,
       title: text(action.title, 'Trabajo'),
@@ -243,6 +253,7 @@ export function applyOperationalAction(
       truck: text(action.truck ?? '', 'Camión', false),
       assignedTo: text(action.assignedTo ?? '', 'Asignación', false),
       instructions: text(action.instructions ?? '', 'Instrucciones', false, 1500),
+      ...(kind === 'pedido' ? { boxSku, boxQuantity } : {}),
       scheduledDate,
       scheduledTime,
       priority: choice(action.priority ?? 'normal', workOrderPriorities, 'Prioridad'),

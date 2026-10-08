@@ -7,8 +7,8 @@ const manager = { id: 'manager-1', name: 'Encargada de prueba' };
 const now = new Date('2026-10-01T08:00:00.000Z');
 const makeAction = (extra = {}) => ({
   type: 'workOrder', kind: 'pedido', title: 'Preparar pedido', reference: 'PED-1',
-  truck: '', assignedTo: '', instructions: '', scheduledDate: '2026-10-01',
-  scheduledTime: '11:00', priority: 'normal', repeatEveryDays: 0, ...extra,
+  truck: '', assignedTo: '', instructions: '', boxSku: 'BIE-CJ', boxQuantity: 24,
+  scheduledDate: '2026-10-01', scheduledTime: '11:00', priority: 'normal', repeatEveryDays: 0, ...extra,
 });
 const apply = (state, action, time = now, actor = manager) => applyAction(state, action, time, actor);
 
@@ -71,6 +71,22 @@ test('work validation rejects unknown IDs, impossible dates, invalid times, enum
   }
   assert.equal(isValidCalendarDate('2028-02-29'), true);
   assert.equal(apply(state, makeAction({ scheduledDate: '2028-02-29', scheduledTime: '' })).workOrders.length, 2);
+});
+
+test('a pedido stores a box quantity without checking available stock', () => {
+  const state = apply(initialState(), makeAction({
+    kind: 'pedido',
+    boxSku: 'BIE-CJ',
+    boxQuantity: 24,
+  }));
+  const order = state.workOrders[0];
+  assert.equal(order.boxSku, 'BIE-CJ');
+  assert.equal(order.boxQuantity, 24);
+  assert.deepEqual(state.locations, initialState().locations);
+  assert.deepEqual(state.movements, initialState().movements);
+
+  assert.throws(() => apply(initialState(), makeAction({ boxQuantity: 0 })), /cajas/);
+  assert.throws(() => apply(initialState(), makeAction({ boxSku: '' })), /caja/);
 });
 
 test('status changes are attributed, repeat status is a no-op, and closed work cannot reopen', () => {
