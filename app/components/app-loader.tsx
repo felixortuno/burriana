@@ -33,9 +33,11 @@ export function useAppRevealed() {
 export default function AppLoader({ children }: { children: ReactNode }) {
   const holds = useRef(new Set<symbol>());
   const fontsLoaded = useRef(false);
+  // The sign-in page is its own loading screen (the truck, plain HTML and CSS), so no cube there.
+  const [bare] = useState(usePathname() === '/login');
   const [ready, setReady] = useState(false);
-  const [revealed, setRevealed] = useState(false);
-  const [finished, setFinished] = useState(false);
+  const [revealed, setRevealed] = useState(bare);
+  const [finished, setFinished] = useState(bare);
   const settle = useCallback(() => {
     if (fontsLoaded.current && holds.current.size === 0) setReady(true);
   }, []);
@@ -57,16 +59,14 @@ export default function AppLoader({ children }: { children: ReactNode }) {
 
   const reveal = useCallback(() => setRevealed(true), []);
   const finish = useCallback(() => setFinished(true), []);
-  // The sign-in scene is dark, so its loading screen is too, whatever the system theme.
-  const dark = usePathname() === '/login';
 
   return <LoadingContext.Provider value={finished ? null : registry}>
     <RevealedContext.Provider value={revealed}>
       <div className="app-root" inert={!revealed}>{children}</div>
     </RevealedContext.Provider>
-    {!finished && <div className={'tm-pantalla tm-tema' + (revealed ? ' revelando' : '')} data-tema={dark ? 'oscuro' : undefined}>
+    {!finished && <div className={'tm-pantalla tm-tema' + (revealed ? ' revelando' : '')}>
       <div className="tm-pantalla-fondo"/>
-      <CuboLoader size={112} ready={ready} onReveal={reveal} onFinish={finish} tema={dark ? 'oscuro' : 'auto'}/>
+      <CuboLoader size={112} ready={ready} onReveal={reveal} onFinish={finish}/>
     </div>}
     <noscript><style>{'.tm-pantalla{display:none}'}</style></noscript>
   </LoadingContext.Provider>;
